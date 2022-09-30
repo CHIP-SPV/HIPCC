@@ -426,7 +426,7 @@ bool HipBinSpirv::detectPlatform() {
       // check that HIP_RUNTIME found in .hipVars does not conflict with
       // HIP_RUNTIME in the env
       if (detected && !var.hipPlatformEnv_.empty()) {
-        if (var.hipPlatformEnv_ != "spirv" || var.hipPlatformEnv_ != "intel") {
+        if (var.hipPlatformEnv_ != "spirv" && var.hipPlatformEnv_ != "intel") {
           cout << "Error: .hipVars was found in " << var.hipPathEnv_
                << " where HIP_PLATFORM=spirv which conflicts with HIP_PLATFORM "
                   "set in the current environment where HIP_PLATFORM="
@@ -437,20 +437,18 @@ bool HipBinSpirv::detectPlatform() {
 
       hipInfo_ = hipInfo;
     }
-  }
-
-  if (var.hipPlatformEnv_ == "spirv" || var.hipPlatformEnv_ == "intel") { // 3.
+  } else if (var.hipPlatformEnv_ == "spirv" ||
+             var.hipPlatformEnv_ == "intel") { // 3.
     if (var.hipPathEnv_.empty()) {
       cout << "Error: setting HIP_PLATFORM=spirv/intel requires setting "
               "HIP_PATH=/path/to/CHIP-SPV install/"
            << endl;
       std::exit(EXIT_FAILURE);
     } else {
-      cout
-          << "Error: HIP_PLATFORM=" << var.hipPlatformEnv_
-          << " was set but .hipInfo(generated during CHIP-SPV install) was not "
-             "found in HIP_PATH="
-          << var.hipPathEnv_ << "/share" << endl;
+      cout << "Error: HIP_PLATFORM=" << var.hipPlatformEnv_
+           << " was set but .hipInfo (generated during CHIP-SPV install) was "
+              "not found in HIP_PATH="
+           << var.hipPathEnv_ << "/share" << endl;
       std::exit(EXIT_FAILURE);
     }
   }
