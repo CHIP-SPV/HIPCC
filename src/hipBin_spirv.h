@@ -52,6 +52,8 @@ THE SOFTWARE.
 
 #define HIP_OFFLOAD_COMPILE_OPTIONS "HIP_OFFLOAD_COMPILE_OPTIONS"
 #define HIP_OFFLOAD_LINK_OPTIONS "HIP_OFFLOAD_LINK_OPTIONS"
+#define HIP_OFFLOAD_RDC_SUPPLEMENT_LINK_OPTIONS                                \
+  "HIP_OFFLOAD_RDC_SUPPLEMENT_LINK_OPTIONS"
 
 /**
  * @brief Container class for parsing and storing .hipInfo
@@ -62,6 +64,7 @@ public:
   string runtime = "";
   string cxxflags = "";
   string ldflags = "";
+  string rdcSupplementLinkFlags = "";
   string clangpath = "";
 
   void parseLine(string line) {
@@ -74,6 +77,11 @@ public:
     } else if (line.find(HIP_OFFLOAD_LINK_OPTIONS) != string::npos) {
       ldflags = line.substr(string(HIP_OFFLOAD_LINK_OPTIONS).size() +
                             1); // add + 1 to account for =
+    } else if (line.find(HIP_OFFLOAD_RDC_SUPPLEMENT_LINK_OPTIONS) !=
+               string::npos) {
+      rdcSupplementLinkFlags =
+          line.substr(string(HIP_OFFLOAD_RDC_SUPPLEMENT_LINK_OPTIONS).size() +
+                      1); // add + 1 to account for =
     } else if (line.find(HIP_CLANG_PATH) != string::npos) {
       // TODO check if llvm-config exists here
       clangpath = line.substr(string(HIP_CLANG_PATH).size() +
@@ -162,7 +170,7 @@ public:
   Argument linkType;
   Argument setLinkType;
   Argument funcSupp; // enable function support
-  Argument rdc;      // whether -fgpu-rdc is on
+  Argument rdc{"\\s-fgpu-rdc\\b"};      // whether -fgpu-rdc is on
 
   void processArgs(vector<string> argv, EnvVariables var) {
     argv.erase(argv.begin()); // remove clang++
@@ -187,6 +195,7 @@ public:
     } else {
       runCmd.present = true;
     }
+    rdc.parseLine(argStr);
   }
 };
 class HipBinSpirv : public HipBinBase {
@@ -646,7 +655,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
 
   // Add --hip-link only if it is compile only and -fgpu-rdc is on.
   if (opts.rdc.present && !opts.compileOnly.present) {
-    HIPLDFLAGS += " --hip-link";
+    HIPLDFLAGS += " " + hipInfo_.rdcSupplementLinkFlags;
     HIPLDFLAGS += HIPLDARCHFLAGS;
   }
 
@@ -723,6 +732,18 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
 
   // Always add HIP include path for hip_runtime_api.h
   CMD += "-I/" + hipIncludePath;
+
+  // Strip duplicate --offload=X values comings from multiple variables
+  // in the .hipInfo.
+  regex offloadRE{"\\s--offload=[^\\s]*"};
+  std::smatch match;
+  if (std::regex_search(CMD.cbegin(), CMD.cend(), match, offloadRE)) {
+     // Keep the first --offload, erase the others.
+     auto pos = match.suffix().first;
+     while (std::regex_search(pos, CMD.cend(), match, offloadRE)) {
+       pos = CMD.erase(match[0].first, match[0].second);
+    }
+  }
 
   // 1st arg is the full path to hipcc
   argv.erase(argv.begin());
