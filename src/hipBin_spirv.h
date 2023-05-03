@@ -30,7 +30,7 @@ THE SOFTWARE.
 #include <unordered_set>
 #include <cassert>
 
-// Use (void) to silent unused warnings.
+// Use (void) to silent unused warnengs.
 #define assertm(exp, msg) assert(((void)msg, exp))
 
 /**
@@ -97,6 +97,7 @@ private:
 public:
   // Is the argument present/enabled
   bool present = false;
+  std::vector<string> matches;
   // Any additional arguments to this argument.
   // Example: "MyName" in `hipcc <...> -o MyName`
   string args;
@@ -113,16 +114,18 @@ public:
    * @param argline string reprenting the campiler invocation
    */
   void parseLine(string &argline) {
-    smatch m;
-    if (regex_search(argline, m, regexp)) {
-      present = true;
-      if (m.size() > 1) {
-        // todo get more args
-      }
-    }
-
-    if (present && !passthrough_) {
-      argline = regex_replace(argline, regexp, "");
+    smatch match;
+    std::string arglineCopy{argline.c_str()};
+    while (regex_search(arglineCopy, match, regexp)) {
+        present = true;
+        string arg = match[0].str();
+        // regex replace all spaces with nothing
+        arg = regex_replace(arg, regex("\\s+"), "");
+        matches.push_back(arg);
+        arglineCopy = match.suffix().str();
+        if(!passthrough_) {
+            argline = match.suffix().str();
+        }
     }
   }
 };
@@ -139,9 +142,12 @@ public:
    * - [whitespace][whatever].hip[whitespace]
    * - [whitespace][whatever].cu[whitespace]
    */
-  Argument compile{
-      "(\\s-c\\s|\\s\\S*\\.(cpp|cc|c|hip|cu)(?:\\s|$))"};   // search for *.cpp src files or -c
-  Argument compileOnly{"\\s-c\\b"};  // search for -c
+  // \s(\w*?\.(cc|cpp))
+  Argument sourcesC{
+      "((:?\\s|^).*?\\.c(:?\\s|$))", false};   // search for source files, removing them from the command line
+  Argument sourcesCpp{
+      "((:?\\s|^).*?\\.(?:cc|cpp|hip|cu)(:?\\s|$))", false};   // search for source files, removing them from the command line
+  Argument compileOnly{"\\s-c\\b", false};  // search for -c, removing it from the command line
   Argument outputObject{"\\s-o\\b"}; // search for -o
   Argument needCXXFLAGS;             // need to add CXX flags to compile step
   Argument needCFLAGS{".*\\.c(\\s|$)"};   // need to add C flags to compile step
@@ -164,7 +170,7 @@ public:
   Argument funcSupp; // enable function support
   Argument rdc;      // whether -fgpu-rdc is on
 
-  void processArgs(vector<string> argv, EnvVariables var) {
+  string processArgs(vector<string> argv, EnvVariables var) {
     argv.erase(argv.begin()); // remove clang++
     string argStr;
     for (auto arg : argv)
@@ -173,7 +179,8 @@ public:
     if (!var.verboseEnv_.empty())
       verbose = stoi(var.verboseEnv_);
 
-    compile.parseLine(argStr);
+    sourcesC.parseLine(argStr);
+    sourcesCpp.parseLine(argStr);
     compileOnly.parseLine(argStr);
     outputObject.parseLine(argStr);
     needCFLAGS.parseLine(argStr);
@@ -187,6 +194,7 @@ public:
     } else {
       runCmd.present = true;
     }
+    return argStr;
   }
 };
 class HipBinSpirv : public HipBinBase {
@@ -273,7 +281,7 @@ void HipBinSpirv::initializeHipLdFlags() {
 }
 
 void HipBinSpirv::initializeHipCFlags() {
-  string hipCFlags = hipInfo_.cxxflags;
+  // string hipCFlags = hipInfo_.cxxflags;
   // string hipclangIncludePath;
   // hipclangIncludePath = getHipInclude();
   // hipCFlags += " -isystem \"" + hipclangIncludePath + "\"";
@@ -281,8 +289,7 @@ void HipBinSpirv::initializeHipCFlags() {
 
   string hipIncludePath;
   hipIncludePath = getHipInclude();
-  hipCFlags += " -isystem \"" + hipIncludePath + "\"";
-  hipCFlags_ = hipCFlags;
+  hipCFlags_ += " -isystem " + hipIncludePath;
 }
 
 const string &HipBinSpirv::getHipCXXFlags() const { return hipCXXFlags_; }
@@ -377,8 +384,8 @@ string HipBinSpirv::getCompilerVersion() {
    * $: llvm-config --version
    * $: 14.0.0
    */
-  cmd /= "/llvm-config";
-  if (canRunCompiler(cmd.string(), out) || canRunCompiler("llvm-config", out)) {
+  cmd += "/llvm-config";
+  if (canRunCompiler(cmd.string(), out)) {
     regex regexp("([0-9.]+)");
     smatch m;
     if (regex_search(out, m, regexp)) {
@@ -583,7 +590,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
 
   CompilerOptions opts;
   EnvVariables var = getEnvVariables();
-  opts.processArgs(argv, var);
+  string processedArgs = opts.processArgs(argv, var);
 
   string toolArgs; // arguments to pass to the clang tool
 
@@ -637,11 +644,28 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     cout << endl;
   }
 
-  // If source present (compile) but excplicit compilation not requested via -c (compileOnly) and output object not requested (outputObject), then add -c compileOnly.
-  if (opts.compile.present && !opts.compileOnly.present && !opts.outputObject.present) {
-    opts.compileOnly.present = true;
-    HIPCFLAGS += " -c";
-    HIPCXXFLAGS += " -c";
+  // Begin building the compilation command
+  string CMD = getHipCC();;
+  CMD += ""; 
+
+  if (opts.sourcesCpp.present) {
+    std::string compileSources = " -x hip --target=x86_64-linux-gnu -c ";
+    for (auto m : opts.sourcesCpp.matches) {
+      compileSources += m + " ";
+    }
+    // compileSources += " -x none ";
+    CMD += compileSources;
+    CMD += HIPCXXFLAGS;
+  }
+
+  if (opts.sourcesC.present) {
+    std::string compileSources = " -x c -c ";
+    for (auto m : opts.sourcesC.matches) {
+      compileSources += m + " ";
+    }
+    // compileSources += " -x none ";
+    CMD += compileSources;
+    CMD += HIPCFLAGS;
   }
 
   // Add --hip-link only if it is compile only and -fgpu-rdc is on.
@@ -678,32 +702,11 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   if (!var.hipccLinkFlagsAppendEnv_.empty()) {
     HIPLDFLAGS += " " + var.hipccLinkFlagsAppendEnv_ + " ";
   }
-  // TODO(hipcc): convert CMD to an array rather than a string
-  string compiler;
-  compiler = getHipCC();
-  string CMD = compiler;
-
-  CMD += " -D__HIP_PLATFORM_SPIRV__=";
-  if (opts.needCFLAGS.present) {
-    CMD += " -x c";
-  }
-
-  opts.needCXXFLAGS.present = opts.compile.present;
-  if (opts.needCXXFLAGS.present && !opts.needCFLAGS.present) {
-    CMD += " " + HIPCXXFLAGS;
-    CMD += " -x hip --target=x86_64-linux-gnu";
-  }
 
   opts.needLDFLAGS.present =
       opts.outputObject.present && !opts.compileOnly.present;
   if (opts.needLDFLAGS.present) {
     CMD += " " + HIPLDFLAGS;
-  }
-
-  // If neither -c nor -o is present, add -c
-  if (!opts.outputObject.present && !opts.compile.present) {
-    CMD += " -c";
-    CMD += " " + HIPCXXFLAGS;
   }
 
   CMD += " " + toolArgs;
@@ -725,13 +728,10 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   CMD += "-I/" + hipIncludePath;
 
   // 1st arg is the full path to hipcc
-  argv.erase(argv.begin());
-  for (auto arg : argv) {
-    // Add an additional escape for every "
-    regex r("\"");
-    arg = regex_replace(arg, r, "\"\\\"");
-    CMD += " " + arg;
-  }
+  processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\""); 
+
+  // append the remaining args
+  CMD += " " + processedArgs;
 
   if (opts.verbose & 0x1) {
     cout << "hipcc-cmd: " << CMD << "\n";
