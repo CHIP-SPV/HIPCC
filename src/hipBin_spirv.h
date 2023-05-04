@@ -118,14 +118,20 @@ public:
     std::string arglineCopy{argline.c_str()};
     while (regex_search(arglineCopy, match, regexp)) {
         present = true;
+
+        // get the matched argument
         string arg = match[0].str();
-        // regex replace all spaces with nothing
+        // regex remove spaces and collect argument
         arg = regex_replace(arg, regex("\\s+"), "");
-        matches.push_back(arg);
-        arglineCopy = match.suffix().str();
+
+        // remove the found match from from the arg line
+        arglineCopy = regex_replace(arglineCopy, regex(arg), "");
+        // if this arg is not meant to be passed on, remove it from the argline
         if(!passthrough_) {
-            argline = match.suffix().str();
+            argline = regex_replace(argline, regex(arg), "");
         }
+
+        matches.push_back(arg);
     }
   }
 };
@@ -144,13 +150,18 @@ public:
    */
   // \s(\w*?\.(cc|cpp))
   Argument sourcesC{
-      "((:?\\s|^).*?\\.c(:?\\s|$))", false};   // search for source files, removing them from the command line
+      "(?:\\s|^)[a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)", false};   // search for source files, removing them from the command line
   Argument sourcesCpp{
-      "((:?\\s|^).*?\\.(?:cc|cpp|hip|cu)(:?\\s|$))", false};   // search for source files, removing them from the command line
-  Argument compileOnly{"\\s-c\\b", false};  // search for -c, removing it from the command line
+      "(?:\\s|^)[a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?:\\s|$)", false};   // search for source files, removing them from the command line
+
+  /*
+   Some very strange behavior - if set to true (passthrough - do not remove) it works. 
+   if set to false (remove), sometimes it will turn --cuda-device-only to - uda-device-only but not every time??
+   */
+  Argument compileOnly{"(?:\\s|^)-c(?:\\s|$)", true};  // search for -c, removing it from the command line
+
   Argument outputObject{"\\s-o\\b"}; // search for -o
   Argument needCXXFLAGS;             // need to add CXX flags to compile step
-  Argument needCFLAGS{".*\\.c(\\s|$)"};   // need to add C flags to compile step
   Argument needLDFLAGS;              // need to add LDFLAGS to compile step.
   Argument fileTypeFlag;             // to see if -x flag is mentioned
   Argument hasOMPTargets;            // If OMP targets is mentioned
@@ -179,11 +190,21 @@ public:
     if (!var.verboseEnv_.empty())
       verbose = stoi(var.verboseEnv_);
 
+    // Kind of an edge case - if arguments are passed in with quotes everything that goes after && and ; should be discrarded
+    if (argStr.find("&&") != string::npos) {
+      argStr = argStr.substr(0, argStr.find("&&"));
+    }
+    if (argStr.find(";") != string::npos) {
+      argStr = argStr.substr(0, argStr.find(";"));
+    }
+    if (argStr.find(">") != string::npos) {
+      argStr = argStr.substr(0, argStr.find(">"));
+    }
+
     sourcesC.parseLine(argStr);
     sourcesCpp.parseLine(argStr);
     compileOnly.parseLine(argStr);
     outputObject.parseLine(argStr);
-    needCFLAGS.parseLine(argStr);
 
     printHipVersion.parseLine(argStr);
     printCXXFlags.parseLine(argStr);
@@ -286,9 +307,8 @@ void HipBinSpirv::initializeHipCFlags() {
   // hipclangIncludePath = getHipInclude();
   // hipCFlags += " -isystem \"" + hipclangIncludePath + "\"";
   // const OsType &os = getOSInfo();
-
-  string hipIncludePath;
-  hipIncludePath = getHipInclude();
+  hipCFlags_ = "-D__HIP_PLATFORM_SPIRV__";
+  string hipIncludePath = getHipInclude();
   hipCFlags_ += " -isystem " + hipIncludePath;
 }
 
@@ -319,8 +339,8 @@ void HipBinSpirv::initializeHipCXXFlags() {
 
   // Add paths to common HIP includes:
   string hipIncludePath;
-  hipIncludePath = getHipInclude();
-  hipCXXFlags += " -isystem \"" + hipIncludePath + "\"";
+//   hipIncludePath = getHipInclude();
+//   hipCXXFlags += " -isystem \"" + hipIncludePath;
   hipCXXFlags_ = hipCXXFlags;
 }
 
@@ -649,11 +669,10 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   CMD += ""; 
 
   if (opts.sourcesCpp.present) {
-    std::string compileSources = " -x hip --target=x86_64-linux-gnu -c ";
+    std::string compileSources = " -x hip -c ";
     for (auto m : opts.sourcesCpp.matches) {
       compileSources += m + " ";
     }
-    // compileSources += " -x none ";
     CMD += compileSources;
     CMD += HIPCXXFLAGS;
   }
@@ -663,7 +682,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     for (auto m : opts.sourcesC.matches) {
       compileSources += m + " ";
     }
-    // compileSources += " -x none ";
     CMD += compileSources;
     CMD += HIPCFLAGS;
   }
