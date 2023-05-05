@@ -680,7 +680,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   CMD += ""; 
 
   if (opts.sourcesCpp.present) {
-    std::string compileSources = " -x hip -c ";
+    std::string compileSources = " -x hip ";
     for (auto m : opts.sourcesCpp.matches) {
       compileSources += m + " ";
     }
@@ -696,6 +696,11 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     CMD += compileSources;
     CMD += HIPCFLAGS;
   }
+
+  // Link against CHIP if compileOnly not present
+    if (!opts.compileOnly.present) {
+        CMD += " " + HIPLDFLAGS;
+    }
 
   // Add --hip-link only if it is compile only and -fgpu-rdc is on.
   if (opts.rdc.present && !opts.compileOnly.present) {
