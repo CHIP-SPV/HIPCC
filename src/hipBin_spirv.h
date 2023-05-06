@@ -125,21 +125,21 @@ public:
     smatch match;
     std::string arglineCopy{argline.c_str()};
     while (regex_search(arglineCopy, match, regexp)) {
-        present = true;
+      present = true;
 
-        // get the matched argument
-        string arg = match[0].str();
-        // regex remove spaces and collect argument
-        arg = regex_replace(arg, regex("\\s+"), "");
+      // get the matched argument
+      string arg = match[0].str();
+      // regex remove spaces and collect argument
+      arg = regex_replace(arg, regex("\\s+"), "");
 
-        // remove the found match from from the arg line
-        arglineCopy = regex_replace(arglineCopy, regex(arg), "");
-        // if this arg is not meant to be passed on, remove it from the argline
-        if(!passthrough_) {
-            argline = regex_replace(argline, regex(arg), "");
-        }
+      // remove the found match from from the arg line
+      arglineCopy = regex_replace(arglineCopy, regex(arg), "");
+      // if this arg is not meant to be passed on, remove it from the argline
+      if (!passthrough_) {
+        argline = regex_replace(argline, regex(arg), "");
+      }
 
-        matches.push_back(arg);
+      matches.push_back(arg);
     }
   }
 };
@@ -158,15 +158,20 @@ public:
    */
   // \s(\w*?\.(cc|cpp))
   Argument sourcesC{
-      "(?:\\s|^)[a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)", false};   // search for source files, removing them from the command line
+      "(?:\\s|^)[a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)",
+      false}; // search for source files, removing them from the command line
   Argument sourcesCpp{
-      "(?:\\s|^)[a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?:\\s|$)", false};   // search for source files, removing them from the command line
+      "(?:\\s|^)[a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?:\\s|$)",
+      false}; // search for source files, removing them from the command line
 
   /*
-   Some very strange behavior - if set to true (passthrough - do not remove) it works. 
-   if set to false (remove), sometimes it will turn --cuda-device-only to - uda-device-only but not every time??
+   Some very strange behavior - if set to true (passthrough - do not remove) it
+   works. if set to false (remove), sometimes it will turn --cuda-device-only to
+   - uda-device-only but not every time??
    */
-  Argument compileOnly{"(?:\\s|^)-c(?:\\s|$)", true};  // search for -c, removing it from the command line
+  Argument compileOnly{
+      "(?:\\s|^)-c(?:\\s|$)",
+      true}; // search for -c, removing it from the command line
 
   Argument outputObject{"\\s-o\\b"}; // search for -o
   Argument needCXXFLAGS;             // need to add CXX flags to compile step
@@ -179,16 +184,18 @@ public:
   Argument hasCXX;
   // options contain a hip-style file (HIP-Clang must pass offloading options)
   Argument hasHIP;
-  Argument printHipVersion{"(?:\\s|^)--short-version\\b", false}; // print HIP version
-  Argument printCXXFlags{"(?:\\s|^)--cxxflags\\b", false};        // print HIPCXXFLAGS
-  Argument printLDFlags{"(?:\\s|^)--ldflags\\b", false};          // print HIPLDFLAGS
+  Argument printHipVersion{"(?:\\s|^)--short-version\\b",
+                           false};                         // print HIP version
+  Argument printCXXFlags{"(?:\\s|^)--cxxflags\\b", false}; // print HIPCXXFLAGS
+  Argument printLDFlags{"(?:\\s|^)--ldflags\\b", false};   // print HIPLDFLAGS
   Argument runCmd;
   Argument buildDeps;
   Argument linkType;
   Argument setLinkType;
-  Argument funcSupp; // enable function support
-  Argument rdc{"(?:\\s|^)-fgpu-rdc\\b"};      // whether -fgpu-rdc is on
-  Argument offload{"(?:\\s|^)--offload=[^\\s]+", false}; // search for --offload=spirv64, removing it
+  Argument funcSupp;                     // enable function support
+  Argument rdc{"(?:\\s|^)-fgpu-rdc\\b"}; // whether -fgpu-rdc is on
+  Argument offload{"(?:\\s|^)--offload=[^\\s]+",
+                   false}; // search for --offload=spirv64, removing it
 
   string processArgs(vector<string> argv, EnvVariables var) {
     argv.erase(argv.begin()); // remove clang++
@@ -199,7 +206,8 @@ public:
     if (!var.verboseEnv_.empty())
       verbose = stoi(var.verboseEnv_);
 
-    // Kind of an edge case - if arguments are passed in with quotes everything that goes after && and ; should be discrarded
+    // Kind of an edge case - if arguments are passed in with quotes everything
+    // that goes after && and ; should be discrarded
     if (argStr.find("&&") != string::npos) {
       argStr = argStr.substr(0, argStr.find("&&"));
     }
@@ -350,8 +358,8 @@ void HipBinSpirv::initializeHipCXXFlags() {
 
   // Add paths to common HIP includes:
   string hipIncludePath;
-//   hipIncludePath = getHipInclude();
-//   hipCXXFlags += " -isystem \"" + hipIncludePath;
+  //   hipIncludePath = getHipInclude();
+  //   hipCXXFlags += " -isystem \"" + hipIncludePath;
   hipCXXFlags_ = hipCXXFlags;
 }
 
@@ -462,7 +470,8 @@ bool HipBinSpirv::detectPlatform() {
   fs::path currentBinaryPath = fs::canonical("/proc/self/exe");
   currentBinaryPath = currentBinaryPath.parent_path();
   fs::path sharePathBuild = currentBinaryPath.string() + "/../share";
-  fs::path sharePathInstall = var.hipPathEnv_.empty() ? "" : var.hipPathEnv_ + "/share";
+  fs::path sharePathInstall =
+      var.hipPathEnv_.empty() ? "" : var.hipPathEnv_ + "/share";
   if (readHipInfo( // 1.
           sharePathBuild, hipInfo)) {
     detected = hipInfo.runtime.compare("spirv") == 0; // b.
@@ -589,11 +598,11 @@ void HipBinSpirv::printFull() {
   cout << endl;
 }
 
-vector<string> excludedArgs {
-  "--offload=spirv64",
-  "-D__HIP_PLATFORM_SPIRV__",
-  "-D__HIP_PLATFORM_SPIRV__=",
-  "-D__HIP_PLATFORM_SPIRV__=1",
+vector<string> excludedArgs{
+    "--offload=spirv64",
+    "-D__HIP_PLATFORM_SPIRV__",
+    "-D__HIP_PLATFORM_SPIRV__=",
+    "-D__HIP_PLATFORM_SPIRV__=1",
 };
 
 vector<string> argsFilter(vector<string> argsIn) {
@@ -676,8 +685,9 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   }
 
   // Begin building the compilation command
-  string CMD = getHipCC();;
-  CMD += ""; 
+  string CMD = getHipCC();
+  ;
+  CMD += "";
 
   if (opts.sourcesCpp.present) {
     std::string compileSources = " -x hip ";
@@ -697,15 +707,15 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     CMD += HIPCFLAGS;
   }
 
-  // Link against CHIP if compileOnly not present
-    if (!opts.compileOnly.present) {
-        CMD += " " + HIPLDFLAGS;
-    }
-
   // Add --hip-link only if it is compile only and -fgpu-rdc is on.
-  if (opts.rdc.present && !opts.compileOnly.present) {
-    HIPLDFLAGS += " " + hipInfo_.rdcSupplementLinkFlags;
-    HIPLDFLAGS += HIPLDARCHFLAGS;
+  if (opts.rdc.present && !opts.compileOnly.present &&
+      !opts.sourcesCpp.present) {
+    CMD += " " + hipInfo_.rdcSupplementLinkFlags;
+  }
+
+  // Link against CHIP if compileOnly not present
+  if (!opts.compileOnly.present) {
+    CMD += " " + HIPLDFLAGS;
   }
 
   // if (opts.hasHIP) {
@@ -762,7 +772,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   CMD += "-I/" + hipIncludePath;
 
   // 1st arg is the full path to hipcc
-  processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\""); 
+  processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\"");
 
   // append the remaining args
   CMD += " " + processedArgs;
