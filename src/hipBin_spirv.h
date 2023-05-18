@@ -158,10 +158,10 @@ public:
    */
   // \s(\w*?\.(cc|cpp))
   Argument sourcesC{
-      "(?:\\s|^)[\.a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)",
+      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)",
       false}; // search for source files, removing them from the command line
   Argument sourcesCpp{
-      "(?:\\s|^)[\.a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?:\\s|$)",
+      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?:\\s|$)",
       false}; // search for source files, removing them from the command line
 
   /*
@@ -699,7 +699,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   }
 
   if (opts.sourcesC.present) {
-    std::string compileSources = " -x c ";
+    std::string compileSources = " -x c -c ";
     for (auto m : opts.sourcesC.matches) {
       compileSources += m + " ";
     }
