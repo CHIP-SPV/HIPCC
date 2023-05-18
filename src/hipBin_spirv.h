@@ -699,7 +699,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   }
 
   if (opts.sourcesC.present) {
-    std::string compileSources = " -x c -c ";
+    std::string compileSources = " -x c ";
     for (auto m : opts.sourcesC.matches) {
       compileSources += m + " ";
     }
