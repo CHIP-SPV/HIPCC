@@ -129,11 +129,10 @@ public:
 
       // get the matched argument
       string arg = match[0].str();
-      // regex remove spaces and collect argument
-      arg = regex_replace(arg, regex("\\s+"), "");
 
       // remove the found match from from the arg line
-      arglineCopy = regex_replace(arglineCopy, regex(arg), "");
+      std::regex re(arg);
+      arglineCopy = regex_replace(arglineCopy, re, "");
       // if this arg is not meant to be passed on, remove it from the argline
       if (!passthrough_) {
         argline = regex_replace(argline, regex(arg), "");
@@ -158,10 +157,10 @@ public:
    */
   // \s(\w*?\.(cc|cpp))
   Argument sourcesC{
-      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)",
+      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)", // TODO
       false}; // search for source files, removing them from the command line
   Argument sourcesCpp{
-      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?:\\s|$)",
+      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?!\\.o)",
       false}; // search for source files, removing them from the command line
 
   /*
@@ -172,8 +171,8 @@ public:
   Argument compileOnly{
       "(?:\\s|^)-c(?:\\s|$)",
       true}; // search for -c, removing it from the command line
-
   Argument outputObject{"\\s-o\\b"}; // search for -o
+  Argument dashXhip{"\\s-x hip\\b", false}; // search for -x hip
   Argument needCXXFLAGS;             // need to add CXX flags to compile step
   Argument needLDFLAGS;              // need to add LDFLAGS to compile step.
   Argument fileTypeFlag;             // to see if -x flag is mentioned
@@ -218,6 +217,7 @@ public:
       argStr = argStr.substr(0, argStr.find(">"));
     }
 
+    dashXhip.parseLine(argStr);
     sourcesC.parseLine(argStr);
     sourcesCpp.parseLine(argStr);
     compileOnly.parseLine(argStr);
@@ -686,8 +686,9 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
 
   // Begin building the compilation command
   string CMD = getHipCC();
-  ;
   CMD += "";
+  if(opts.dashXhip.present)
+    opts.sourcesCpp.present = true;
 
   if (opts.sourcesCpp.present) {
     std::string compileSources = " -x hip ";
