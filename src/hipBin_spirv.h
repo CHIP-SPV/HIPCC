@@ -690,23 +690,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   if(opts.dashXhip.present)
     opts.sourcesCpp.present = true;
 
-  if (opts.sourcesCpp.present) {
-    std::string compileSources = " -x hip ";
-    for (auto m : opts.sourcesCpp.matches) {
-      compileSources += m + " ";
-    }
-    CMD += compileSources;
-    CMD += HIPCXXFLAGS;
-  }
 
-  if (opts.sourcesC.present) {
-    std::string compileSources = " -x c ";
-    for (auto m : opts.sourcesC.matches) {
-      compileSources += m + " ";
-    }
-    CMD += compileSources;
-    CMD += HIPCFLAGS;
-  }
 
   // Add --hip-link only if it is compile only and -fgpu-rdc is on.
   if (opts.rdc.present && !opts.compileOnly.present &&
@@ -777,6 +761,24 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
 
   // append the remaining args
   CMD += " " + processedArgs;
+
+  if (opts.sourcesCpp.present) {
+    std::string compileSources = " -x hip ";
+    for (auto m : opts.sourcesCpp.matches) {
+      compileSources += m + " ";
+    }
+    CMD += compileSources;
+    CMD += HIPCXXFLAGS;
+  }
+
+  if (opts.sourcesC.present) {
+    std::string compileSources = " -x c ";
+    for (auto m : opts.sourcesC.matches) {
+      compileSources += m + " ";
+    }
+    CMD += compileSources;
+    CMD += HIPCFLAGS;
+  }
 
   if (opts.verbose & 0x1) {
     cout << "hipcc-cmd: " << CMD << "\n";
