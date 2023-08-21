@@ -132,10 +132,10 @@ public:
 
       // remove the found match from from the arg line
       std::regex re(arg);
-      arglineCopy = regex_replace(arglineCopy, re, "");
+      arglineCopy = regex_replace(arglineCopy, re, " ");
       // if this arg is not meant to be passed on, remove it from the argline
       if (!passthrough_) {
-        argline = regex_replace(argline, regex(arg), "");
+        argline = regex_replace(argline, regex(arg), " ");
       }
 
       matches.push_back(arg);
