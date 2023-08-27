@@ -100,6 +100,9 @@ namespace fs = std::filesystem;
 #include <algorithm>
 #include <vector>
 
+#if defined(__APPLE__) || defined(__MACOSX)
+#include <mach-o/dyld.h>
+#endif
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <tchar.h>
@@ -193,7 +196,7 @@ string HipBinUtil::mktempFile(string name) {
   return name;
 }
 
-// gets the path of the executable name
+// gets the directory path of the running executable
 string HipBinUtil::getSelfPath() const {
   int MAX_PATH_CHAR = 1024;
   int bufferSize = 0;
@@ -206,17 +209,24 @@ string HipBinUtil::getSelfPath() const {
     path = string(wide.begin(), wide.end());
   #else
     char buff[MAX_PATH_CHAR];
-    ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff) - 1);
-    if (len > 0) {
-      buff[len] = '\0';
-      path = string(buff);
-      fs::path exePath(path);
-      path = exePath.parent_path().string();
-    } else {
-      cout << "readlink: Error reading the exe path" << endl;
-      perror("readlink");
-      exit(-1);
-    }
+    #if defined(__APPLE__) || defined(__MACOSX)
+      uint32_t len = sizeof(buff) - 1;
+      if(_NSGetExecutablePath(buff, &len) || len <= 0) {
+        cout << "hipcc: Error reading the exe path" << endl;
+        exit(-1);
+      }
+    #else
+      ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff) - 1);
+      if (len <= 0) {
+        cout << "hipcc: Error reading the exe path" << endl;
+        perror("readlink");
+        exit(-1);
+      }
+    #endif
+    buff[len] = '\0';
+    path = string(buff);
+    fs::path exePath(path);
+    path = exePath.remove_filename().string();
   #endif
   return path;
 }
