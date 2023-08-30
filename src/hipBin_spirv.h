@@ -247,7 +247,7 @@ private:
   HipBinUtil *hipBinUtilPtr_;
   string hipClangPath_ = "";
   PlatformInfo platformInfo_;
-  string hipCFlags_, hipCXXFlags_, hipLdFlags_;
+  string hipCFlags_, hipCXXFlags_, hipLdFlags_, fixupHeader_;
   HipInfo hipInfo_;
 
 public:
@@ -363,6 +363,15 @@ void HipBinSpirv::initializeHipCXXFlags() {
 
   // Add paths to common HIP includes:
   string hipIncludePath;
+
+  std::smatch Match;
+  std::regex R("-include ([\\S]+)/hip/spirv_fixups.h");
+  bool HasMatch = regex_search(hipCXXFlags, Match, R);
+  if (HasMatch) {
+    fixupHeader_ = Match[0].str();
+    hipCXXFlags = hipBinUtilPtr_->replaceStr(hipCXXFlags, fixupHeader_, " ");
+  }
+
   //   hipIncludePath = getHipInclude();
   //   hipCXXFlags += " -isystem \"" + hipIncludePath;
   hipCXXFlags_ = hipCXXFlags;
@@ -637,10 +646,9 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   EnvVariables var = getEnvVariables();
   string processedArgs = opts.processArgs(argv, var);
 
-  string toolArgs; // arguments to pass to the clang tool
-
   const OsType &os = getOSInfo();
   string hip_compile_cxx_as_hip;
+
   if (var.hipCompileCxxAsHipEnv_.empty()) {
     hip_compile_cxx_as_hip = "1";
   } else {
@@ -656,6 +664,13 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   HIPCFLAGS = getHipCFlags();
   HIPCXXFLAGS = getHipCXXFlags();
   HIPLDFLAGS = getHipLdFlags();
+  if (!var.hipccCompileFlagsAppendEnv_.empty()) {
+    HIPCXXFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
+    HIPCFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
+  }
+  if (!var.hipccLinkFlagsAppendEnv_.empty()) {
+    HIPLDFLAGS += " " + var.hipccLinkFlagsAppendEnv_ + " ";
+  }
   string hipLibPath;
   string hipclangIncludePath, hipIncludePath, deviceLibPath;
   hipLibPath = getHipLibPath();
@@ -699,11 +714,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     CMD += " " + hipInfo_.rdcSupplementLinkFlags;
   }
 
-  // Link against CHIP if compileOnly not present
-  if (!opts.compileOnly.present) {
-    CMD += " " + HIPLDFLAGS;
-  }
-
   // if (opts.hasHIP) {
   //   fs::path bitcodeFs = roccmPath;
   //   bitcodeFs /= "amdgcn/bitcode";
@@ -725,21 +735,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   //   toolArgs += " -L" + hipClangPath + "/../lib/clang/" + hipClangVersion +
   //               "/lib/linux -lclang_rt.builtins-x86_64 ";
   // }
-  if (!var.hipccCompileFlagsAppendEnv_.empty()) {
-    HIPCXXFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
-    HIPCFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
-  }
-  if (!var.hipccLinkFlagsAppendEnv_.empty()) {
-    HIPLDFLAGS += " " + var.hipccLinkFlagsAppendEnv_ + " ";
-  }
-
-  opts.needLDFLAGS.present =
-      opts.outputObject.present && !opts.compileOnly.present;
-  if (opts.needLDFLAGS.present) {
-    CMD += " " + HIPLDFLAGS;
-  }
-
-  CMD += " " + toolArgs;
 
   if (opts.printHipVersion.present) {
     if (opts.runCmd.present) {
@@ -754,8 +749,11 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     cout << HIPLDFLAGS;
   }
 
+  if (!fixupHeader_.empty()) {
+    CMD += " " + fixupHeader_;
+  }
   // Always add HIP include path for hip_runtime_api.h
-  CMD += "-I/" + hipIncludePath;
+  CMD += " -I" + hipIncludePath;
 
   // 1st arg is the full path to hipcc
   processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\"");
@@ -785,6 +783,10 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     }
     CMD += compileSources;
     CMD += HIPCFLAGS;
+  }
+
+  if (!opts.compileOnly.present) {
+    CMD += " " + HIPLDFLAGS;
   }
 
   if (opts.verbose & 0x1) {
