@@ -64,6 +64,16 @@ HipBin::HipBin() {
   hipBinAMDPtr_ = new HipBinAmd();
   hipBinSPIRVPtr_ = new HipBinSpirv();
   bool platformDetected = false;
+
+  // Default to SPIR-V for our fork
+  if (hipBinSPIRVPtr_->detectPlatform()) {
+    // populates the struct with Intel/SPIR-V info
+    const PlatformInfo &platformInfo = hipBinSPIRVPtr_->getPlatformInfo();
+    platformVec_.push_back(platformInfo);
+    hipBinBasePtrs_.push_back(hipBinSPIRVPtr_);
+    platformDetected = true;
+  }
+
   if (hipBinAMDPtr_->detectPlatform()) {
     // populates the struct with AMD info
     const PlatformInfo& platformInfo = hipBinAMDPtr_->getPlatformInfo();
@@ -80,14 +90,6 @@ HipBin::HipBin() {
     platformDetected = true;
   } 
   
-   if (hipBinSPIRVPtr_->detectPlatform()) {
-    // populates the struct with Intel/SPIR-V info
-    const PlatformInfo& platformInfo = hipBinSPIRVPtr_->getPlatformInfo();
-    platformVec_.push_back(platformInfo);
-    hipBinBasePtrs_.push_back(hipBinSPIRVPtr_);
-    platformDetected = true;
-  }
-
   // if no device is detected, then it is defaulted to AMD
   if (!platformDetected) {
     cout << "Device not supported - Defaulting to AMD" << endl;
