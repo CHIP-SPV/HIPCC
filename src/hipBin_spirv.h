@@ -130,12 +130,16 @@ public:
       // get the matched argument
       string arg = match[0].str();
 
-      // remove the found match from from the arg line
-      std::regex re(arg);
-      arglineCopy = regex_replace(arglineCopy, re, " ");
+      // remove leading and trailing whitespace
+      arg.erase(0, arg.find_first_not_of(" \t\n\r"));
+      arg.erase(arg.find_last_not_of(" \t\n\r") + 1);
+
+      // string replace arg with nothing
+      arglineCopy.replace(arglineCopy.find(arg), arg.length(), "");
+
       // if this arg is not meant to be passed on, remove it from the argline
       if (!passthrough_) {
-        argline = regex_replace(argline, regex(arg), " ");
+        argline.replace(argline.find(arg), arg.length(), "");
       }
 
       matches.push_back(arg);
@@ -171,13 +175,14 @@ public:
   Argument compileOnly{
       "(?:\\s|^)-c(?:\\s|$)",
       true}; // search for -c, removing it from the command line
-  Argument outputObject{"\\s-o\\b"}; // search for -o
-  Argument dashXhip{"\\s-x hip\\b", false}; // search for -x hip
-  Argument needCXXFLAGS;             // need to add CXX flags to compile step
-  Argument needLDFLAGS;              // need to add LDFLAGS to compile step.
-  Argument fileTypeFlag;             // to see if -x flag is mentioned
-  Argument hasOMPTargets;            // If OMP targets is mentioned
-  Argument hasC;                     // options contain a c-style file
+  Argument outputObject{"\\s-o\\b"};         // search for -o
+  Argument dashX{"\\s-x\\s*(.+?)(?:\\s|$)"}; // search for -x <LANG>
+  // Argument dashXhip{"\\s-x hip\\b", false}; // search for -x hip
+  Argument needCXXFLAGS;  // need to add CXX flags to compile step
+  Argument needLDFLAGS;   // need to add LDFLAGS to compile step.
+  Argument fileTypeFlag;  // to see if -x flag is mentioned
+  Argument hasOMPTargets; // If OMP targets is mentioned
+  Argument hasC;          // options contain a c-style file
   // options contain a cpp-style file (NVCC must force recognition as GPU
   // file)
   Argument hasCXX;
@@ -217,7 +222,7 @@ public:
       argStr = argStr.substr(0, argStr.find(">"));
     }
 
-    dashXhip.parseLine(argStr);
+    dashX.parseLine(argStr);
     sourcesC.parseLine(argStr);
     sourcesCpp.parseLine(argStr);
     compileOnly.parseLine(argStr);
@@ -687,10 +692,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // Begin building the compilation command
   string CMD = getHipCC();
   CMD += "";
-  if(opts.dashXhip.present)
-    opts.sourcesCpp.present = true;
-
-
 
   // Add --hip-link only if it is compile only and -fgpu-rdc is on.
   if (opts.rdc.present && !opts.compileOnly.present &&
@@ -760,10 +761,16 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\"");
 
   // append the remaining args
-  CMD += " " + processedArgs;
+  CMD += " " + processedArgs + " ";
+
+  if (opts.dashX.present)
+    opts.sourcesCpp.present = true;
 
   if (opts.sourcesCpp.present) {
-    std::string compileSources = " -x hip ";
+    std::string compileSources;
+    if (!opts.dashX.present) {
+      compileSources = " -x hip ";
+    }
     for (auto m : opts.sourcesCpp.matches) {
       compileSources += m + " ";
     }
