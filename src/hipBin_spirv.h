@@ -137,9 +137,9 @@ public:
       // string replace arg with nothing
       // arglineCopy.replace(arglineCopy.find(arg), arg.length(), "");
       std::string removeArgRegex = arg;
-      if(arg.find('.') != string::npos)
+      if (arg.find('.') != string::npos)
         removeArgRegex.replace(removeArgRegex.find('.'), 1, "\\.");
-      if(arg.find('/') != string::npos)
+      if (arg.find('/') != string::npos)
         removeArgRegex.replace(removeArgRegex.find('/'), 1, "\\/");
       arglineCopy = regex_replace(arglineCopy, regex(removeArgRegex), "");
 
@@ -165,13 +165,13 @@ std::vector<std::string> extractSources(std::string &argline, bool del = true) {
     arg.erase(0, arg.find_first_not_of(" \t\n\r"));
     arg.erase(arg.find_last_not_of(" \t\n\r") + 1);
 
-    if(arg.find('.') != string::npos)
+    if (arg.find('.') != string::npos)
       arg.replace(arg.find('.'), 1, "\\.");
     // replace all instances of / with \\/
     size_t pos = 0;
     while ((pos = arg.find("/", pos)) != std::string::npos) {
-        arg.replace(pos, 1, "\\/");
-        pos += 3;
+      arg.replace(pos, 1, "\\/");
+      pos += 3;
     }
     if (del)
       argline = std::regex_replace(argline, std::regex(arg), "");
@@ -831,8 +831,8 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // append the remaining args
   CMD += " " + processedArgs + " ";
 
-  //if -x was not found, assume all c++ sources are HIP
-  if(opts.dashX.present == false) {
+  // if -x was not found, assume all c++ sources are HIP
+  if (opts.dashX.present == false) {
     opts.sourcesHip.present = true;
     opts.sourcesHip.matches = opts.sourcesCpp.matches;
     opts.sourcesCpp.present = false;
