@@ -135,17 +135,82 @@ public:
       arg.erase(arg.find_last_not_of(" \t\n\r") + 1);
 
       // string replace arg with nothing
-      arglineCopy.replace(arglineCopy.find(arg), arg.length(), "");
+      // arglineCopy.replace(arglineCopy.find(arg), arg.length(), "");
+      std::string removeArgRegex = arg;
+      if(arg.find('.') != string::npos)
+        removeArgRegex.replace(removeArgRegex.find('.'), 1, "\\.");
+      if(arg.find('/') != string::npos)
+        removeArgRegex.replace(removeArgRegex.find('/'), 1, "\\/");
+      arglineCopy = regex_replace(arglineCopy, regex(removeArgRegex), "");
 
       // if this arg is not meant to be passed on, remove it from the argline
       if (!passthrough_) {
-        argline.replace(argline.find(arg), arg.length(), "");
+        argline = regex_replace(argline, regex(removeArgRegex), "");
       }
 
       matches.push_back(arg);
     }
   }
 };
+
+std::vector<std::string> extractSources(std::string &argline, bool del = true) {
+  std::vector<std::string> sources;
+  std::regex regexp("((\\S+\\.(?!o\\b)[^.\\s]+))");
+  std::smatch match;
+  while (std::regex_search(argline, match, regexp)) {
+    // get the matched argument
+    std::string arg = match[0].str();
+
+    // remove leading and trailing whitespace
+    arg.erase(0, arg.find_first_not_of(" \t\n\r"));
+    arg.erase(arg.find_last_not_of(" \t\n\r") + 1);
+
+    if(arg.find('.') != string::npos)
+      arg.replace(arg.find('.'), 1, "\\.");
+    // replace all instances of / with \\/
+    size_t pos = 0;
+    while ((pos = arg.find("/", pos)) != std::string::npos) {
+        arg.replace(pos, 1, "\\/");
+        pos += 3;
+    }
+    if (del)
+      argline = std::regex_replace(argline, std::regex(arg), "");
+
+    sources.push_back(arg);
+  }
+  return sources;
+}
+
+std::vector<std::string> parseDashX(std::string &argLine) {
+  std::regex regexp("\\s-x\\s*(.+?)(?:\\s|$)");
+  std::smatch match;
+  std::vector<std::string> result;
+  if (std::regex_search(argLine, match, regexp)) {
+    // get the matched argument
+    std::string arg = match[0].str();
+    std::string lang = match[1].str();
+    result.push_back(lang);
+
+    // remove -x <LANG> from argline, split into before and after
+    auto beforeDashX = argLine.substr(0, argLine.find(arg));
+    auto afterDashX = argLine.substr(argLine.find(arg) + arg.length());
+
+    // extract (and remove) sources from the part that comes after -x <LANG>
+    auto sourcesAfterDashX = extractSources(afterDashX);
+    // push sources to result
+    result.insert(result.end(), sourcesAfterDashX.begin(),
+                  sourcesAfterDashX.end());
+
+    argLine = beforeDashX + afterDashX;
+  }
+
+  return result;
+}
+
+void preprocessArgLine(std::string &argLine) {
+  // replace all instances of multiple whitespace with a single whitespace
+  argLine = std::regex_replace(argLine, std::regex("\\s+"), " ");
+}
 
 class CompilerOptions {
 public:
@@ -166,6 +231,7 @@ public:
   Argument sourcesCpp{
       "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?!\\.o)",
       false}; // search for source files, removing them from the command line
+  Argument sourcesHip;
 
   /*
    Some very strange behavior - if set to true (passthrough - do not remove) it
@@ -222,9 +288,32 @@ public:
       argStr = argStr.substr(0, argStr.find(">"));
     }
 
-    dashX.parseLine(argStr);
+    auto dashXresult = parseDashX(argStr);
     sourcesC.parseLine(argStr);
     sourcesCpp.parseLine(argStr);
+    if (dashXresult.size()) {
+      dashX.present = true;
+      auto lang = dashXresult[0];
+      // erase the first element
+      dashXresult.erase(dashXresult.begin());
+      if (lang == "c++") {
+        sourcesCpp.present = true;
+        sourcesCpp.matches.insert(sourcesCpp.matches.end(), dashXresult.begin(),
+                                  dashXresult.end());
+      } else if (lang == "c") {
+        sourcesC.present = true;
+        sourcesC.matches.insert(sourcesC.matches.end(), dashXresult.begin(),
+                                dashXresult.end());
+      } else if (lang == "hip") {
+        sourcesHip.present = true;
+        sourcesHip.matches.insert(sourcesHip.matches.end(), dashXresult.begin(),
+                                  dashXresult.end());
+      } else {
+        // error out
+        cout << "Error: -x " << lang << " is not supported" << endl;
+        exit(-1);
+      }
+    }
     compileOnly.parseLine(argStr);
     outputObject.parseLine(argStr);
 
@@ -659,7 +748,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   string hipLibPath;
   string hipclangIncludePath, hipIncludePath, deviceLibPath;
   hipLibPath = getHipLibPath();
-  const string &roccmPath = getRoccmPath();
+  // const string &roccmPath = getRoccmPath();
   const string &hipPath = getHipPath();
   const PlatformInfo &platformInfo = getPlatformInfo();
   const string &rocclrHomePath(""); // = getRocclrHomePath();
@@ -704,27 +793,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     CMD += " " + HIPLDFLAGS;
   }
 
-  // if (opts.hasHIP) {
-  //   fs::path bitcodeFs = roccmPath;
-  //   bitcodeFs /= "amdgcn/bitcode";
-  //   if (deviceLibPath != bitcodeFs.string()) {
-  //     string hip_device_lib_str =
-  //         " --hip-device-lib-path=\"" + deviceLibPath + "\"";
-  //     HIPCXXFLAGS += hip_device_lib_str;
-  //   }
-  // }
-  // if (os != windows) {
-  //   HIPLDFLAGS += " -lgcc_s -lgcc -lpthread -lm -lrt";
-  // }
-
-  // if (os != windows && !opts.compileOnly) {
-  //   string hipClangVersion;
-
-  //   hipClangVersion = getCompilerVersion();
-  //   // To support __fp16 and _Float16, explicitly link with compiler-rt
-  //   toolArgs += " -L" + hipClangPath + "/../lib/clang/" + hipClangVersion +
-  //               "/lib/linux -lclang_rt.builtins-x86_64 ";
-  // }
   if (!var.hipccCompileFlagsAppendEnv_.empty()) {
     HIPCXXFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
     HIPCFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
@@ -763,14 +831,24 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // append the remaining args
   CMD += " " + processedArgs + " ";
 
-  if (opts.dashX.present)
-    opts.sourcesCpp.present = true;
+  //if -x was not found, assume all c++ sources are HIP
+  if(opts.dashX.present == false) {
+    opts.sourcesHip.present = true;
+    opts.sourcesHip.matches = opts.sourcesCpp.matches;
+    opts.sourcesCpp.present = false;
+    opts.sourcesCpp.matches.clear();
+  }
+  if (opts.sourcesHip.present && opts.sourcesHip.matches.size() > 0) {
+    std::string compileSources = " -x hip ";
+    for (auto m : opts.sourcesHip.matches) {
+      compileSources += m + " ";
+    }
+    CMD += compileSources;
+    CMD += HIPCXXFLAGS;
+  }
 
   if (opts.sourcesCpp.present) {
-    std::string compileSources;
-    if (!opts.dashX.present) {
-      compileSources = " -x hip ";
-    }
+    std::string compileSources = "-x c++ ";
     for (auto m : opts.sourcesCpp.matches) {
       compileSources += m + " ";
     }
