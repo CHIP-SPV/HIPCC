@@ -115,7 +115,7 @@ public:
   Argument(){};
   Argument(string regexpIn) : regexp(regexpIn){};
   Argument(string regexpIn, bool passthrough)
-      : regexp(regexpIn), passthrough_(passthrough){};
+      : passthrough_(passthrough), regexp(regexpIn){};
   /**
    * @brief Parse the compiler invocation and enable this argument
    *
@@ -153,8 +153,28 @@ public:
   }
 };
 
+/**
+ * @brief Extarct all source files from argline. Here sources are defined as
+ * anything that has a . in it but do not end in .o
+ *
+ * @param argline
+ * @param del
+ * @return std::vector<std::string>
+ */
 std::vector<std::string> extractSources(std::string &argline, bool del = true) {
   std::vector<std::string> sources;
+  /*
+  (         # Start of the capturing group
+  (\\S+     # Match one or more non-whitespace characters (\\S matches a
+  non-whitespace character, + specifies one or more times)
+  \\.       # Match a literal dot character (\\. matches a dot, because a dot is
+  a special character in regex)
+  (?!o\\b)  # Negative lookahead assertion that asserts what immediately follows
+  is not the character "o" followed by a word boundary (\\b is a word boundary)
+  [^.\\s]+  # Match one or more characters that are neither a dot nor a
+  whitespace ([^...] defines a negated character class, matching one character
+  not in the set) )           # End of the capturing group
+  */
   std::regex regexp("((\\S+\\.(?!o\\b)[^.\\s]+))");
   std::smatch match;
   while (std::regex_search(argline, match, regexp)) {
@@ -181,7 +201,27 @@ std::vector<std::string> extractSources(std::string &argline, bool del = true) {
   return sources;
 }
 
+/**
+ * @brief Parse -x <LANG> from argline, removing it from argline and all sources
+ * following -x <LANG> option
+ *
+ * @param argLine string representing the compiler invocation
+ * @return std::vector<std::string> 0th element contains <LANG>, rest are
+ * sources
+ */
 std::vector<std::string> parseDashX(std::string &argLine) {
+  /*
+  \s          # Match a whitespace character
+  -x          # Match the characters "-x" literally
+  \s*         # Match zero or more whitespace characters (\s matches whitespace,
+  * specifies zero or more times)
+  (.+?)       # Capture one or more of any character (except for a line
+  terminator), but as few as possible, into group 1 (. matches any character, +
+  specifies one or more times, ? makes the + non-greedy)
+  (?:         # Start of a non-capturing group (?:... specifies a non-capturing
+  group) \s        # Match a whitespace character |           # OR $         #
+  Match the end of the string )           # End of the non-capturing group
+  */
   std::regex regexp("\\s-x\\s*(.+?)(?:\\s|$)");
   std::smatch match;
   std::vector<std::string> result;
@@ -191,7 +231,7 @@ std::vector<std::string> parseDashX(std::string &argLine) {
     std::string lang = match[1].str();
     result.push_back(lang);
 
-    // remove -x <LANG> from argline, split into before and after
+    // split & remove -x <LANG> from argline, split into before and after
     auto beforeDashX = argLine.substr(0, argLine.find(arg));
     auto afterDashX = argLine.substr(argLine.find(arg) + arg.length());
 
@@ -205,11 +245,6 @@ std::vector<std::string> parseDashX(std::string &argLine) {
   }
 
   return result;
-}
-
-void preprocessArgLine(std::string &argLine) {
-  // replace all instances of multiple whitespace with a single whitespace
-  argLine = std::regex_replace(argLine, std::regex("\\s+"), " ");
 }
 
 class CompilerOptions {
@@ -226,43 +261,24 @@ public:
    */
   // \s(\w*?\.(cc|cpp))
   Argument sourcesC{
-      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)", // TODO
+      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)",
       false}; // search for source files, removing them from the command line
   Argument sourcesCpp{
       "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?!\\.o)",
       false}; // search for source files, removing them from the command line
-  Argument sourcesHip;
-
-  /*
-   Some very strange behavior - if set to true (passthrough - do not remove) it
-   works. if set to false (remove), sometimes it will turn --cuda-device-only to
-   - uda-device-only but not every time??
-   */
+  Argument
+      sourcesHip; // if -x hip is not specified, all c++ sources are assumed to
+                  // be HIP sources. Otherwise, this is populated by parseDashX
   Argument compileOnly{
       "(?:\\s|^)-c(?:\\s|$)",
       true}; // search for -c, removing it from the command line
   Argument outputObject{"\\s-o\\b"};         // search for -o
-  Argument dashX{"\\s-x\\s*(.+?)(?:\\s|$)"}; // search for -x <LANG>
-  // Argument dashXhip{"\\s-x hip\\b", false}; // search for -x hip
-  Argument needCXXFLAGS;  // need to add CXX flags to compile step
-  Argument needLDFLAGS;   // need to add LDFLAGS to compile step.
-  Argument fileTypeFlag;  // to see if -x flag is mentioned
-  Argument hasOMPTargets; // If OMP targets is mentioned
-  Argument hasC;          // options contain a c-style file
-  // options contain a cpp-style file (NVCC must force recognition as GPU
-  // file)
-  Argument hasCXX;
-  // options contain a hip-style file (HIP-Clang must pass offloading options)
-  Argument hasHIP;
+  Argument dashX; // processed by parseDashX
   Argument printHipVersion{"(?:\\s|^)--short-version\\b",
                            false};                         // print HIP version
   Argument printCXXFlags{"(?:\\s|^)--cxxflags\\b", false}; // print HIPCXXFLAGS
   Argument printLDFlags{"(?:\\s|^)--ldflags\\b", false};   // print HIPLDFLAGS
   Argument runCmd;
-  Argument buildDeps;
-  Argument linkType;
-  Argument setLinkType;
-  Argument funcSupp;                     // enable function support
   Argument rdc{"(?:\\s|^)-fgpu-rdc\\b"}; // whether -fgpu-rdc is on
   Argument offload{"(?:\\s|^)--offload=[^\\s]+",
                    false}; // search for --offload=spirv64, removing it
@@ -801,9 +817,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     HIPLDFLAGS += " " + var.hipccLinkFlagsAppendEnv_ + " ";
   }
 
-  opts.needLDFLAGS.present =
-      opts.outputObject.present && !opts.compileOnly.present;
-  if (opts.needLDFLAGS.present) {
+  if (opts.outputObject.present && !opts.compileOnly.present) {
     CMD += " " + HIPLDFLAGS;
   }
 
