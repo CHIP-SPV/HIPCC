@@ -266,13 +266,16 @@ public:
   Argument sourcesCpp{
       "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?!\\.o)",
       false}; // search for source files, removing them from the command line
+  Argument sourcesObj{
+      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.o(?:\\s|$)",
+      false}; // search for source files, removing them from the command line
   Argument
       sourcesHip; // if -x hip is not specified, all c++ sources are assumed to
                   // be HIP sources. Otherwise, this is populated by parseDashX
   Argument compileOnly{
       "(?:\\s|^)-c(?:\\s|$)",
       true}; // search for -c, removing it from the command line
-  Argument outputObject{"\\s-o\\b"};         // search for -o
+  Argument outputObject{"-o\\s+([\\./\\-\\w]+)", false};         // search for -o
   Argument dashX; // processed by parseDashX
   Argument printHipVersion{"(?:\\s|^)--short-version\\b",
                            false};                         // print HIP version
@@ -305,8 +308,10 @@ public:
     }
 
     auto dashXresult = parseDashX(argStr);
+    outputObject.parseLine(argStr);
     sourcesC.parseLine(argStr);
     sourcesCpp.parseLine(argStr);
+    sourcesObj.parseLine(argStr);
     if (dashXresult.size()) {
       dashX.present = true;
       auto lang = dashXresult[0];
@@ -331,8 +336,6 @@ public:
       }
     }
     compileOnly.parseLine(argStr);
-    outputObject.parseLine(argStr);
-
     printHipVersion.parseLine(argStr);
     printCXXFlags.parseLine(argStr);
     printLDFlags.parseLine(argStr);
@@ -839,11 +842,15 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // Always add HIP include path for hip_runtime_api.h
   CMD += "-I/" + hipIncludePath;
 
-  // 1st arg is the full path to hipcc
-  processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\"");
 
-  // append the remaining args
-  CMD += " " + processedArgs + " ";
+  // place objects first so that they don't get treated as source files by -x <LANG>
+  if (opts.sourcesObj.present) {
+    std::string compileSources = " ";
+    for (auto m : opts.sourcesObj.matches) {
+      compileSources += m + " ";
+    }
+    CMD += compileSources;
+  }
 
   // if -x was not found, assume all c++ sources are HIP
   if (opts.dashX.present == false) {
@@ -862,7 +869,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   }
 
   if (opts.sourcesCpp.present) {
-    std::string compileSources = "-x c++ ";
+    std::string compileSources = " -x c++ ";
     for (auto m : opts.sourcesCpp.matches) {
       compileSources += m + " ";
     }
@@ -878,6 +885,16 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     CMD += compileSources;
     CMD += HIPCFLAGS;
   }
+
+  if (opts.outputObject.present) {
+    CMD += " " + opts.outputObject.matches[0];
+  }
+
+    // 1st arg is the full path to hipcc
+  processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\"");
+
+  // append the remaining args
+  CMD += " " + processedArgs + " ";
 
   if (opts.verbose & 0x1) {
     cout << "hipcc-cmd: " << CMD << "\n";
