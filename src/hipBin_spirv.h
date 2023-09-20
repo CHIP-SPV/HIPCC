@@ -275,7 +275,7 @@ public:
   Argument compileOnly{
       "(?:\\s|^)-c(?:\\s|$)",
       true}; // search for -c, removing it from the command line
-  Argument outputObject{"-o\\s+([\\./\\-\\w]+)", false};         // search for -o
+  Argument outputObject{"-o\\s+([\\./\\-\\w]+)", false}; // search for -o
   Argument dashX; // processed by parseDashX
   Argument printHipVersion{"(?:\\s|^)--short-version\\b",
                            false};                         // print HIP version
@@ -311,7 +311,7 @@ public:
     outputObject.parseLine(argStr);
     sourcesC.parseLine(argStr);
     sourcesCpp.parseLine(argStr);
-    sourcesObj.parseLine(argStr);
+    // sourcesObj.parseLine(argStr);
     if (dashXresult.size()) {
       dashX.present = true;
       auto lang = dashXresult[0];
@@ -355,7 +355,7 @@ private:
   HipBinUtil *hipBinUtilPtr_;
   string hipClangPath_ = "";
   PlatformInfo platformInfo_;
-  string hipCFlags_, hipCXXFlags_, hipLdFlags_;
+  string hipCFlags_, hipCXXFlags_, hipLdFlags_, fixupHeader_;
   HipInfo hipInfo_;
 
 public:
@@ -471,6 +471,15 @@ void HipBinSpirv::initializeHipCXXFlags() {
 
   // Add paths to common HIP includes:
   string hipIncludePath;
+
+  std::smatch Match;
+  std::regex R("-include ([\\S]+)/hip/spirv_fixups.h");
+  bool HasMatch = regex_search(hipCXXFlags, Match, R);
+  if (HasMatch) {
+    fixupHeader_ = Match[0].str();
+    hipCXXFlags = hipBinUtilPtr_->replaceStr(hipCXXFlags, fixupHeader_, " ");
+  }
+
   //   hipIncludePath = getHipInclude();
   //   hipCXXFlags += " -isystem \"" + hipIncludePath;
   hipCXXFlags_ = hipCXXFlags;
@@ -764,6 +773,14 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   HIPCFLAGS = getHipCFlags();
   HIPCXXFLAGS = getHipCXXFlags();
   HIPLDFLAGS = getHipLdFlags();
+  if (!var.hipccCompileFlagsAppendEnv_.empty()) {
+    HIPCXXFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
+    HIPCFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
+  }
+  if (!var.hipccLinkFlagsAppendEnv_.empty()) {
+    HIPLDFLAGS += " " + var.hipccLinkFlagsAppendEnv_ + " ";
+  }
+
   string hipLibPath;
   string hipclangIncludePath, hipIncludePath, deviceLibPath;
   hipLibPath = getHipLibPath();
@@ -807,25 +824,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     CMD += " " + hipInfo_.rdcSupplementLinkFlags;
   }
 
-  // Link against CHIP if compileOnly not present
-  if (!opts.compileOnly.present) {
-    CMD += " " + HIPLDFLAGS;
-  }
-
-  if (!var.hipccCompileFlagsAppendEnv_.empty()) {
-    HIPCXXFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
-    HIPCFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
-  }
-  if (!var.hipccLinkFlagsAppendEnv_.empty()) {
-    HIPLDFLAGS += " " + var.hipccLinkFlagsAppendEnv_ + " ";
-  }
-
-  if (opts.outputObject.present && !opts.compileOnly.present) {
-    CMD += " " + HIPLDFLAGS;
-  }
-
-  CMD += " " + toolArgs;
-
   if (opts.printHipVersion.present) {
     if (opts.runCmd.present) {
       cout << "HIP version: ";
@@ -839,18 +837,18 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     cout << HIPLDFLAGS;
   }
 
-  // Always add HIP include path for hip_runtime_api.h
-  CMD += "-I/" + hipIncludePath;
-
-
-  // place objects first so that they don't get treated as source files by -x <LANG>
-  if (opts.sourcesObj.present) {
-    std::string compileSources = " ";
-    for (auto m : opts.sourcesObj.matches) {
-      compileSources += m + " ";
-    }
-    CMD += compileSources;
+  if (!fixupHeader_.empty()) {
+    CMD += " " + fixupHeader_;
   }
+
+  // Always add HIP include path for hip_runtime_api.h
+  CMD += " -I/" + hipIncludePath;
+
+  // 1st arg is the full path to hipcc
+  processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\"");
+
+  // append the remaining args
+  CMD += " " + processedArgs + " ";
 
   // if -x was not found, assume all c++ sources are HIP
   if (opts.dashX.present == false) {
@@ -890,11 +888,9 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     CMD += " " + opts.outputObject.matches[0];
   }
 
-    // 1st arg is the full path to hipcc
-  processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\"");
-
-  // append the remaining args
-  CMD += " " + processedArgs + " ";
+  if (!opts.compileOnly.present) {
+    CMD += " " + HIPLDFLAGS;
+  }
 
   if (opts.verbose & 0x1) {
     cout << "hipcc-cmd: " << CMD << "\n";
