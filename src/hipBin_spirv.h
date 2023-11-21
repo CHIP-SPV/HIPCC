@@ -287,6 +287,8 @@ public:
                    false}; // search for --offload=spirv64, removing it
 
   Argument linkOnly;
+  Argument MT;
+  Argument MF;
   vector<string> defaultSources;
   vector<string> cSources;
   vector<string> cppSources;
@@ -320,11 +322,11 @@ public:
   // "-D__HIP_PLATFORM_SPIRV__=1",
 
   vector<string> processArgsV2(vector<string> argv) {
-    std::cout << "hipcc processArgsV2 begin:";
-    for (auto arg : argv) {
-      std::cout << arg << " ";
-    }
-    std::cout << "\n";
+    // std::cout << "hipcc processArgsV2 begin:";
+    // for (auto arg : argv) {
+    //   std::cout << arg << " ";
+    // }
+    // std::cout << "\n";
 
     /// used for checking -x <lang> and -o <output>
     vector<string> remainingArgs;
@@ -356,7 +358,20 @@ public:
         outputObject.matches.push_back("-o " + arg);
         // outputObject.matches.push_back("-o  \"" + arg +
         //                                "\""); // store the output name
-      } else {
+      } else if (arg == "-MT") {
+        prevArg = arg;
+        continue; // don't pass it on
+      } else if (prevArg == "-MT") {
+        MT.present = true;
+        MT.matches.push_back("-MT " + arg);
+      } else if (arg == "-MF") {
+        prevArg = arg;
+        continue; // don't pass it on
+      } else if (prevArg == "-MF") {
+        MF.present = true;
+        MF.matches.push_back("-MF " + arg);
+      } 
+      else {
         // pass through all other arguments
         remainingArgs.push_back(arg);
         remainingArgsStr += " " + arg;
@@ -367,16 +382,16 @@ public:
     } // end arg loop
 
     // debug print options and remaining args
-    cout << "compileOnly: " << compileOnly.present << "\n";
-    cout << "outputObject: " << outputObject.present << "\n";
-    cout << "offload: " << offload.present << "\n";
-    cout << "rdc: " << rdc.present << "\n";
+    // cout << "compileOnly: " << compileOnly.present << "\n";
+    // cout << "outputObject: " << outputObject.present << "\n";
+    // cout << "offload: " << offload.present << "\n";
+    // cout << "rdc: " << rdc.present << "\n";
 
-    std::cout << "hipcc processArgsV2 end:";
-    for (auto arg : remainingArgs) {
-      std::cout << arg << " ";
-    }
-    std::cout << "\n";
+    // std::cout << "hipcc processArgsV2 end:";
+    // for (auto arg : remainingArgs) {
+    //   std::cout << arg << " ";
+    // }
+    // std::cout << "\n";
     return remainingArgs;
   }
 
@@ -971,7 +986,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // check arguments to figure out if we need to compile, link, or both + other
   auto processedArgs = opts.processArgsV2(argv);
 
-  // prase -x
+  // parse -x
   processedArgs = opts.parseDashXv2(processedArgs);
 
   const OsType &os = getOSInfo();
@@ -1111,6 +1126,14 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
 
   if (!opts.compileOnly.present) {
     CMD += " " + HIPLDFLAGS;
+  }
+
+  if (opts.MT.present) {
+    CMD += " " + opts.MT.matches[0];
+  }
+
+  if (opts.MF.present) {
+    CMD += " " + opts.MF.matches[0];
   }
 
   // if there is more than once instance of "--offload=spirv64" in the command,
