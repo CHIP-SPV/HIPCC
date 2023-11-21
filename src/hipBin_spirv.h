@@ -302,7 +302,7 @@ public:
     argvStr = regex_replace(argvStr, regex("\\s+"), " ");
 
     // convert -x <lang> to -x<lang>
-    argvStr = regex_replace(argvStr, regex("\\s-x\\s"), "-x");
+    argvStr = regex_replace(argvStr, regex("\\s-x\\s"), " -x");
 
     // convert argvStr back to array by splitting on whitespace
     vector<string> argvNew;
