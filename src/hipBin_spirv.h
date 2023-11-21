@@ -286,6 +286,7 @@ public:
   Argument offload{"(?:\\s|^)--offload=[^\\s]+",
                    false}; // search for --offload=spirv64, removing it
 
+  Argument linkOnly;
   vector<string> defaultSources;
   vector<string> cSources;
   vector<string> cppSources;
@@ -339,13 +340,15 @@ public:
         offload.present = true;
       } else if (arg == "-fgpu-rdc") {
         rdc.present = true;
+        remainingArgs.push_back(arg);
+        remainingArgsStr += " " + arg;
       } else if (arg == "--short-version") {
         printHipVersion.present = true;
       } else if (arg == "--cxxflags") {
         printCXXFlags.present = true;
       } else if (arg == "--ldflags") {
         printLDFlags.present = true;
-      }  else if (arg == "-o") {
+      } else if (arg == "-o") {
         prevArg = arg;
         continue; // don't pass it on
       } else if (prevArg == "-o") {
@@ -378,7 +381,18 @@ public:
   }
 
   bool argIsCppSource(string arg) {
-    vector<string> cppExtensions = {".cpp", ".cxx", ".cc", ".hip", ".cu"};
+    vector<string> cppExtensions = {".cpp", ".cxx", ".cc"};
+    for (auto ext : cppExtensions) {
+      auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
+      if (arg.substr(substridx) == ext)
+        return true;
+    }
+
+    return false;
+  }
+
+  bool argIsHipSource(string arg) {
+    vector<string> cppExtensions = {".hip", ".cu"};
     for (auto ext : cppExtensions) {
       auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
       if (arg.substr(substridx) == ext)
@@ -391,6 +405,17 @@ public:
   bool argIsCSource(string arg) {
     vector<string> cExtensions = {".c"};
     for (auto ext : cExtensions) {
+      auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
+      if (arg.substr(substridx) == ext)
+        return true;
+    }
+
+    return false;
+  }
+
+  bool argIsObject(string arg) {
+    vector<string> objExtensions = {".o"};
+    for (auto ext : objExtensions) {
       auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
       if (arg.substr(substridx) == ext)
         return true;
@@ -442,10 +467,21 @@ public:
       } else if (argIsCppSource(arg)) {
         sourcesCpp.present = true;
         sourcesCpp.matches.push_back(arg);
+      } else if (argIsHipSource(arg)) {
+        sourcesHip.present = true;
+        sourcesHip.matches.push_back(arg);
+      } else if (argIsObject(arg)) {
+        sourcesObj.present = true;
+        sourcesObj.matches.push_back(arg);
       } else {
         remainingArgs.push_back(arg);
         remainingArgsStr += " " + arg;
       }
+    } // end arg loop
+
+    // check if we need to compile anything, if not, linkOnly is true
+    if (!sourcesC.present && !sourcesCpp.present && !sourcesHip.present) {
+      linkOnly.present = true;
     }
 
     return remainingArgs;
@@ -1007,8 +1043,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   CMD += "";
 
   // Add --hip-link only if it is compile only and -fgpu-rdc is on.
-  if (opts.rdc.present && !opts.compileOnly.present &&
-      !opts.sourcesCpp.present) {
+  if (opts.rdc.present && opts.linkOnly.present) {
     CMD += " " + hipInfo_.rdcSupplementLinkFlags;
   }
 
@@ -1038,10 +1073,17 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // if -x was not found, assume all c++ sources are HIP
   if (opts.dashX.present == false) {
     opts.sourcesHip.present = true;
-    opts.sourcesHip.matches = opts.sourcesCpp.matches;
+    opts.sourcesHip.matches.insert(opts.sourcesHip.matches.end(),
+                                   opts.sourcesCpp.matches.begin(),
+                                   opts.sourcesCpp.matches.end());
     opts.sourcesCpp.present = false;
     opts.sourcesCpp.matches.clear();
   }
+
+  for (auto obj : opts.sourcesObj.matches) {
+    CMD += " " + obj;
+  }
+
   if (opts.sourcesHip.present && opts.sourcesHip.matches.size() > 0) {
     std::string compileSources = " -x hip ";
     for (auto m : opts.sourcesHip.matches) {
@@ -1076,6 +1118,17 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   if (!opts.compileOnly.present) {
     CMD += " " + HIPLDFLAGS;
   }
+
+  // if there is more than once instance of "--offload=spirv64" in the command,
+  // leave only 1
+  // std::string target = "--offload=spirv64";
+  // size_t firstPos = CMD.find(target);
+  // if (firstPos != std::string::npos) {
+  //   size_t nextPos;
+  //   while ((nextPos = CMD.find(target, firstPos + 1)) != std::string::npos) {
+  //     CMD.erase(nextPos, target.length());
+  //   }
+  // }
 
   if (opts.verbose & 0x1) {
     cout << "hipcc-cmd: " << CMD << "\n";
