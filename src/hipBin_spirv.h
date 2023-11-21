@@ -339,25 +339,24 @@ public:
         offload.present = true;
       } else if (arg == "-fgpu-rdc") {
         rdc.present = true;
-      } else if (arg == "-o") {
-        outputObject.present = true;
       } else if (arg == "--short-version") {
         printHipVersion.present = true;
       } else if (arg == "--cxxflags") {
         printCXXFlags.present = true;
       } else if (arg == "--ldflags") {
         printLDFlags.present = true;
+      }  else if (arg == "-o") {
+        prevArg = arg;
+        continue; // don't pass it on
+      } else if (prevArg == "-o") {
+        outputObject.present = true;
+        outputObject.matches.push_back("-o " + arg);
+        // outputObject.matches.push_back("-o  \"" + arg +
+        //                                "\""); // store the output name
       } else {
-        // process -o
-        if (outputObject.present) {
-          outputObject.matches.push_back("-o " + arg);
-          // outputObject.matches.push_back("-o  \"" + arg +
-          //                                "\""); // store the output name
-        } else {
-          // pass through all other arguments
-          remainingArgs.push_back(arg);
-          remainingArgsStr += " " + arg;
-        }
+        // pass through all other arguments
+        remainingArgs.push_back(arg);
+        remainingArgsStr += " " + arg;
       }
 
       // std::cout << "remainingArgsStr: " << remainingArgsStr << "\n";
@@ -382,7 +381,7 @@ public:
     vector<string> cppExtensions = {".cpp", ".cxx", ".cc", ".hip", ".cu"};
     for (auto ext : cppExtensions) {
       auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
-      if (arg.substr(substridx) == ext) 
+      if (arg.substr(substridx) == ext)
         return true;
     }
 
@@ -393,7 +392,7 @@ public:
     vector<string> cExtensions = {".c"};
     for (auto ext : cExtensions) {
       auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
-      if (arg.substr(substridx) == ext) 
+      if (arg.substr(substridx) == ext)
         return true;
     }
 
@@ -922,6 +921,12 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   cout << "INVOKING HIPCC:\n";
   for (auto arg : argv) {
     cout << arg << " ";
+  }
+  cout << endl;
+
+  cout << "INVOKING HIPCC DEBUG:\n";
+  for (auto arg : origArgv) {
+    cout << "\"" << arg << "\", ";
   }
   cout << endl;
 
