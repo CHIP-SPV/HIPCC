@@ -249,7 +249,7 @@ std::vector<std::string> parseDashX(std::string &argLine) {
 
 class CompilerOptions {
 public:
-  int verbose = 0; // 0x1=commands, 0x2=paths, 0x4=hipcc args
+  int verbose = 0x1; // 0x1=commands, 0x2=paths, 0x4=hipcc args
   // bool setStdLib = 0; // set if user explicitly requests -stdlib=libc++
   /**
    * Use compilation mode if any of these matches:
@@ -285,6 +285,169 @@ public:
   Argument rdc{"(?:\\s|^)-fgpu-rdc\\b"}; // whether -fgpu-rdc is on
   Argument offload{"(?:\\s|^)--offload=[^\\s]+",
                    false}; // search for --offload=spirv64, removing it
+
+  vector<string> defaultSources;
+  vector<string> cSources;
+  vector<string> cppSources;
+  vector<string> hipSources;
+
+  vector<string> preprocessArgsV2(vector<string> argv) {
+    string argvStr;
+    for (auto arg : argv) {
+      argvStr += " " + arg;
+    }
+
+    // replace all instances of multiple whitespaces with one
+    argvStr = regex_replace(argvStr, regex("\\s+"), " ");
+
+    // convert -x <lang> to -x<lang>
+    argvStr = regex_replace(argvStr, regex("\\s-x\\s"), "-x");
+
+    // convert argvStr back to array by splitting on whitespace
+    vector<string> argvNew;
+    std::istringstream iss(argvStr);
+    for (std::string s; iss >> s;) {
+      argvNew.push_back(s);
+    }
+
+    return argvNew;
+  }
+
+  // "--offload=spirv64",
+  // "-D__HIP_PLATFORM_SPIRV__",
+  // "-D__HIP_PLATFORM_SPIRV__=",
+  // "-D__HIP_PLATFORM_SPIRV__=1",
+
+  vector<string> processArgsV2(vector<string> argv) {
+    std::cout << "hipcc processArgsV2 begin:";
+    for (auto arg : argv) {
+      std::cout << arg << " ";
+    }
+    std::cout << "\n";
+
+    /// used for checking -x <lang> and -o <output>
+    vector<string> remainingArgs;
+    string remainingArgsStr;
+    string prevArg = "";
+    for (auto arg : argv) {
+      std::cout << "\nprocessArgsV2 current arg: " << arg << "\n";
+      if (arg == "-c") {
+        compileOnly.present = true;
+        remainingArgs.push_back(arg);
+        remainingArgsStr += " " + arg;
+      } else if (arg == "--offload=spirv64") {
+        offload.present = true;
+      } else if (arg == "-fgpu-rdc") {
+        rdc.present = true;
+      } else if (arg == "-o") {
+        outputObject.present = true;
+      } else if (arg == "--short-version") {
+        printHipVersion.present = true;
+      } else if (arg == "--cxxflags") {
+        printCXXFlags.present = true;
+      } else if (arg == "--ldflags") {
+        printLDFlags.present = true;
+      } else {
+        // process -o
+        if (outputObject.present) {
+          outputObject.matches.push_back("-o " + arg);
+          // outputObject.matches.push_back("-o  \"" + arg +
+          //                                "\""); // store the output name
+        } else {
+          // pass through all other arguments
+          remainingArgs.push_back(arg);
+          remainingArgsStr += " " + arg;
+        }
+      }
+
+      std::cout << "remainingArgsStr: " << remainingArgsStr << "\n";
+      prevArg = arg;
+    } // end arg loop
+
+    // debug print options and remaining args
+    cout << "compileOnly: " << compileOnly.present << "\n";
+    cout << "outputObject: " << outputObject.present << "\n";
+    cout << "offload: " << offload.present << "\n";
+    cout << "rdc: " << rdc.present << "\n";
+
+    std::cout << "hipcc processArgsV2 end:";
+    for (auto arg : remainingArgs) {
+      std::cout << arg << " ";
+    }
+    std::cout << "\n";
+    return remainingArgs;
+  }
+
+  bool argIsCppSource(string arg) {
+    vector<string> cppExtensions = {".cpp", ".cxx", ".cc", ".hip", ".cu"};
+    for (auto ext : cppExtensions) {
+      auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
+      if (arg.substr(substridx) == ext) 
+        return true;
+    }
+
+    return false;
+  }
+
+  bool argIsCSource(string arg) {
+    vector<string> cExtensions = {".c"};
+    for (auto ext : cExtensions) {
+      auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
+      if (arg.substr(substridx) == ext) 
+        return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * @brief Given an array of arugments, extract the sources and classify them
+   * expecting that -x <lang> has been converted to -x<lang>
+   * @param argv
+   * @return vector<string>
+   */
+  vector<string> parseDashXv2(vector<string> argv) {
+    vector<string> remainingArgs;
+    string remainingArgsStr = "";
+
+    bool parsingDashXc = false;
+    bool parsingDashXcpp = false;
+    bool parsingDashXhip = false;
+
+    for (auto arg : argv) {
+      if (arg == "-xc") {
+        sourcesC.present = true;
+        parsingDashXc = true;
+      } else if (arg == "-xc++") {
+        sourcesCpp.present = true;
+        parsingDashXcpp = true;
+      } else if (arg == "-xhip") {
+        sourcesHip.present = true;
+        parsingDashXhip = true;
+      } else if (arg == "-x") {
+        assert(!"Error: -x <lang> should have been converted to -x<lang>");
+      } else if (parsingDashXc) {
+        sourcesC.matches.push_back(arg);
+      } else if (parsingDashXcpp) {
+        sourcesCpp.matches.push_back(arg);
+      } else if (parsingDashXhip) {
+        sourcesHip.matches.push_back(arg);
+        // dealt with -x cases, now deal with everything else
+
+      } else if (argIsCSource(arg)) {
+        sourcesC.present = true;
+        sourcesC.matches.push_back(arg);
+      } else if (argIsCppSource(arg)) {
+        sourcesCpp.present = true;
+        sourcesCpp.matches.push_back(arg);
+      } else {
+        remainingArgs.push_back(arg);
+        remainingArgsStr += " " + arg;
+      }
+    }
+
+    return remainingArgs;
+  }
 
   string processArgs(vector<string> argv, EnvVariables var) {
     argv.erase(argv.begin()); // remove clang++
@@ -750,11 +913,28 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     exit(EXIT_SUCCESS);
   }
 
+  // drop the first argument as it's the name of the binary
+  argv.erase(argv.begin());
+
+  cout << "INVOKING HIPCC:\n";
+  for (auto arg : argv) {
+    cout << arg << " ";
+  }
+  cout << endl;
+
   CompilerOptions opts;
   EnvVariables var = getEnvVariables();
-  string processedArgs = opts.processArgs(argv, var);
+  if (!var.verboseEnv_.empty())
+    opts.verbose = stoi(var.verboseEnv_);
 
-  string toolArgs; // arguments to pass to the clang tool
+  // trim whitespace, convert -x <lang> to -x<lang>
+  argv = opts.preprocessArgsV2(argv);
+
+  // check arguments to figure out if we need to compile, link, or both + other
+  auto processedArgs = opts.processArgsV2(argv);
+
+  // prase -x
+  processedArgs = opts.parseDashXv2(processedArgs);
 
   const OsType &os = getOSInfo();
   string hip_compile_cxx_as_hip;
@@ -844,11 +1024,8 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // Always add HIP include path for hip_runtime_api.h
   CMD += " -I/" + hipIncludePath;
 
-  // 1st arg is the full path to hipcc
-  processedArgs = regex_replace(processedArgs, regex("\""), "\"\\\"");
-
-  // append the remaining args
-  CMD += " " + processedArgs + " ";
+  for (auto arg : processedArgs)
+    CMD += " " + arg;
 
   // if -x was not found, assume all c++ sources are HIP
   if (opts.dashX.present == false) {
@@ -896,6 +1073,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     cout << "hipcc-cmd: " << CMD << "\n";
   }
 
+  opts.runCmd.present = true;
   if (opts.runCmd.present) {
     SystemCmdOut sysOut;
     sysOut = hipBinUtilPtr_->exec(CMD.c_str(), true);
