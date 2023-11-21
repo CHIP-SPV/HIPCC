@@ -330,7 +330,7 @@ public:
     string remainingArgsStr;
     string prevArg = "";
     for (auto arg : argv) {
-      std::cout << "\nprocessArgsV2 current arg: " << arg << "\n";
+      // std::cout << "\nprocessArgsV2 current arg: " << arg << "\n";
       if (arg == "-c") {
         compileOnly.present = true;
         remainingArgs.push_back(arg);
@@ -360,7 +360,7 @@ public:
         }
       }
 
-      std::cout << "remainingArgsStr: " << remainingArgsStr << "\n";
+      // std::cout << "remainingArgsStr: " << remainingArgsStr << "\n";
       prevArg = arg;
     } // end arg loop
 
@@ -418,12 +418,15 @@ public:
       if (arg == "-xc") {
         sourcesC.present = true;
         parsingDashXc = true;
+        dashX.present = true;
       } else if (arg == "-xc++") {
         sourcesCpp.present = true;
         parsingDashXcpp = true;
+        dashX.present = true;
       } else if (arg == "-xhip") {
         sourcesHip.present = true;
         parsingDashXhip = true;
+        dashX.present = true;
       } else if (arg == "-x") {
         assert(!"Error: -x <lang> should have been converted to -x<lang>");
       } else if (parsingDashXc) {
