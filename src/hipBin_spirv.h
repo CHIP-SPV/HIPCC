@@ -954,12 +954,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // drop the first argument as it's the name of the binary
   argv.erase(argv.begin());
 
-  cout << "INVOKING HIPCC:\n";
-  for (auto arg : argv) {
-    cout << arg << " ";
-  }
-  cout << endl;
-
   cout << "INVOKING HIPCC DEBUG:\n";
   for (auto arg : origArgv) {
     cout << "\"" << arg << "\", ";
