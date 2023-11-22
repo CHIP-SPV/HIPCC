@@ -294,7 +294,7 @@ public:
   vector<string> cppSources;
   vector<string> hipSources;
 
-  vector<string> preprocessArgsV2(vector<string> argv) {
+  vector<string> preprocessArgs(vector<string> argv) {
     string argvStr;
     for (auto arg : argv) {
       argvStr += " " + arg;
@@ -321,8 +321,8 @@ public:
   // "-D__HIP_PLATFORM_SPIRV__=",
   // "-D__HIP_PLATFORM_SPIRV__=1",
 
-  vector<string> processArgsV2(vector<string> argv) {
-    // std::cout << "hipcc processArgsV2 begin:";
+  vector<string> processArgs(vector<string> argv) {
+    // std::cout << "hipcc processArgs begin:";
     // for (auto arg : argv) {
     //   std::cout << arg << " ";
     // }
@@ -387,7 +387,7 @@ public:
     // cout << "offload: " << offload.present << "\n";
     // cout << "rdc: " << rdc.present << "\n";
 
-    // std::cout << "hipcc processArgsV2 end:";
+    // std::cout << "hipcc processArgs end:";
     // for (auto arg : remainingArgs) {
     //   std::cout << arg << " ";
     // }
@@ -445,7 +445,7 @@ public:
    * @param argv
    * @return vector<string>
    */
-  vector<string> parseDashXv2(vector<string> argv) {
+  vector<string> parseSources(vector<string> argv) {
     vector<string> remainingArgs;
     string remainingArgsStr = "";
 
@@ -502,69 +502,6 @@ public:
     return remainingArgs;
   }
 
-  string processArgs(vector<string> argv, EnvVariables var) {
-    argv.erase(argv.begin()); // remove clang++
-    string argStr;
-    for (auto arg : argv)
-      argStr += " " + arg;
-
-    if (!var.verboseEnv_.empty())
-      verbose = stoi(var.verboseEnv_);
-
-    // Kind of an edge case - if arguments are passed in with quotes everything
-    // that goes after && and ; should be discrarded
-    if (argStr.find("&&") != string::npos) {
-      argStr = argStr.substr(0, argStr.find("&&"));
-    }
-    if (argStr.find(";") != string::npos) {
-      argStr = argStr.substr(0, argStr.find(";"));
-    }
-    if (argStr.find(">") != string::npos) {
-      argStr = argStr.substr(0, argStr.find(">"));
-    }
-
-    auto dashXresult = parseDashX(argStr);
-    outputObject.parseLine(argStr);
-    sourcesC.parseLine(argStr);
-    sourcesCpp.parseLine(argStr);
-    // sourcesObj.parseLine(argStr);
-    if (dashXresult.size()) {
-      dashX.present = true;
-      auto lang = dashXresult[0];
-      // erase the first element
-      dashXresult.erase(dashXresult.begin());
-      if (lang == "c++") {
-        sourcesCpp.present = true;
-        sourcesCpp.matches.insert(sourcesCpp.matches.end(), dashXresult.begin(),
-                                  dashXresult.end());
-      } else if (lang == "c") {
-        sourcesC.present = true;
-        sourcesC.matches.insert(sourcesC.matches.end(), dashXresult.begin(),
-                                dashXresult.end());
-      } else if (lang == "hip") {
-        sourcesHip.present = true;
-        sourcesHip.matches.insert(sourcesHip.matches.end(), dashXresult.begin(),
-                                  dashXresult.end());
-      } else {
-        // error out
-        cout << "Error: -x " << lang << " is not supported" << endl;
-        exit(-1);
-      }
-    }
-    compileOnly.parseLine(argStr);
-    printHipVersion.parseLine(argStr);
-    printCXXFlags.parseLine(argStr);
-    printLDFlags.parseLine(argStr);
-    offload.parseLine(argStr);
-    rdc.parseLine(argStr);
-    if (printHipVersion.present || printCXXFlags.present ||
-        printLDFlags.present) {
-      runCmd.present = false;
-    } else {
-      runCmd.present = true;
-    }
-    return argStr;
-  }
 };
 class HipBinSpirv : public HipBinBase {
 private:
@@ -981,13 +918,13 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     opts.verbose = stoi(var.verboseEnv_);
 
   // trim whitespace, convert -x <lang> to -x<lang>
-  argv = opts.preprocessArgsV2(argv);
+  argv = opts.preprocessArgs(argv);
 
   // check arguments to figure out if we need to compile, link, or both + other
-  auto processedArgs = opts.processArgsV2(argv);
+  auto processedArgs = opts.processArgs(argv);
 
   // parse -x
-  processedArgs = opts.parseDashXv2(processedArgs);
+  processedArgs = opts.parseSources(processedArgs);
 
   const OsType &os = getOSInfo();
   string hip_compile_cxx_as_hip;
