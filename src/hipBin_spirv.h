@@ -107,7 +107,7 @@ public:
 
 class CompilerOptions {
 public:
-  int verbose = 0x1; // 0x1=commands, 0x2=paths, 0x4=hipcc args
+  int verbose = 0x0; // 0x1=commands, 0x2=paths, 0x4=hipcc args
   // bool setStdLib = 0; // set if user explicitly requests -stdlib=libc++
   Argument sourcesC;
   Argument sourcesCpp;
@@ -771,7 +771,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   string CMD = getHipCC();
   CMD += "";
 
-  // Add --hip-link only if it is compile only and -fgpu-rdc is on.
+  // Add --hip-link only if it is link only and -fgpu-rdc is on.
   if (opts.rdc.present && opts.linkOnly.present) {
     CMD += " " + hipInfo_.rdcSupplementLinkFlags;
   }
@@ -793,12 +793,14 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
     CMD += " " + fixupHeader_;
   }
 
-  // Always add HIP include path for hip_runtime_api.h
+  // always add HIP include path for hip_runtime_api.h
   CMD += " -I/" + hipIncludePath;
 
+  // append all user provided arguments that weren't handled
   for (auto arg : processedArgs)
     CMD += " " + arg;
 
+  // append all objects
   for (auto obj : opts.sourcesObj.values) {
     CMD += " " + obj;
   }
