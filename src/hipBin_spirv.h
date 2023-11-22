@@ -102,6 +102,7 @@ public:
   bool present = false;
   std::vector<string> values;
   Argument(){};
+  Argument(bool presentIn) : present(presentIn){};
 };
 
 class CompilerOptions {
@@ -118,7 +119,7 @@ public:
   Argument printHipVersion;
   Argument printCXXFlags;
   Argument printLDFlags;
-  Argument runCmd;
+  Argument runCmd{true};
   Argument rdc;
   Argument offload;
   Argument linkOnly;
@@ -158,39 +159,34 @@ public:
     return argvNew;
   }
 
-  // "--offload=spirv64",
-  // "-D__HIP_PLATFORM_SPIRV__",
-  // "-D__HIP_PLATFORM_SPIRV__=",
-  // "-D__HIP_PLATFORM_SPIRV__=1",
-
-  vector<string> processArgs(vector<string> argv) {
-    // std::cout << "hipcc processArgs begin:";
-    // for (auto arg : argv) {
-    //   std::cout << arg << " ";
-    // }
-    // std::cout << "\n";
-
-    /// used for checking -x <lang> and -o <output>
+  /**
+   * @brief process arguments and set flags for what to do
+   * Handle the cases where options take an argument such as -o <file>, -MT
+   * <file>, -MF <file>
+   *
+   * @param argv
+   * @return vector<string>
+   */
+  vector<string> processArgs(const vector<string> &argv) {
     vector<string> remainingArgs;
-    string remainingArgsStr;
     string prevArg = "";
     for (auto arg : argv) {
-      // std::cout << "\nprocessArgsV2 current arg: " << arg << "\n";
       if (arg == "-c") {
         compileOnly.present = true;
         remainingArgs.push_back(arg);
-        remainingArgsStr += " " + arg;
       } else if (arg == "--offload=spirv64") {
         offload.present = true;
       } else if (arg == "-fgpu-rdc") {
         rdc.present = true;
         remainingArgs.push_back(arg);
-        remainingArgsStr += " " + arg;
       } else if (arg == "--short-version") {
+        runCmd.present = false;
         printHipVersion.present = true;
       } else if (arg == "--cxxflags") {
+        runCmd.present = false;
         printCXXFlags.present = true;
       } else if (arg == "--ldflags") {
+        runCmd.present = false;
         printLDFlags.present = true;
       } else if (arg == "-o") {
         prevArg = arg;
@@ -198,8 +194,6 @@ public:
       } else if (prevArg == "-o") {
         outputObject.present = true;
         outputObject.values.push_back("-o " + arg);
-        // outputObject.matches.push_back("-o  \"" + arg +
-        //                                "\""); // store the output name
       } else if (arg == "-MT") {
         prevArg = arg;
         continue; // don't pass it on
@@ -215,24 +209,11 @@ public:
       } else {
         // pass through all other arguments
         remainingArgs.push_back(arg);
-        remainingArgsStr += " " + arg;
       }
 
-      // std::cout << "remainingArgsStr: " << remainingArgsStr << "\n";
       prevArg = arg;
     } // end arg loop
 
-    // debug print options and remaining args
-    // cout << "compileOnly: " << compileOnly.present << "\n";
-    // cout << "outputObject: " << outputObject.present << "\n";
-    // cout << "offload: " << offload.present << "\n";
-    // cout << "rdc: " << rdc.present << "\n";
-
-    // std::cout << "hipcc processArgs end:";
-    // for (auto arg : remainingArgs) {
-    //   std::cout << arg << " ";
-    // }
-    // std::cout << "\n";
     return remainingArgs;
   }
 
@@ -264,10 +245,8 @@ public:
    * @param argv
    * @return vector<string>
    */
-  vector<string> parseSources(vector<string> argv) {
+  vector<string> processSources(const vector<string> &argv) {
     vector<string> remainingArgs;
-    string remainingArgsStr = "";
-
     bool parsingDashXc = false;
     bool parsingDashXcpp = false;
     bool parsingDashXhip = false;
@@ -309,13 +288,22 @@ public:
         sourcesObj.values.push_back(arg);
       } else {
         remainingArgs.push_back(arg);
-        remainingArgsStr += " " + arg;
       }
     } // end arg loop
 
     // check if we need to compile anything, if not, linkOnly is true
     if (!sourcesC.present && !sourcesCpp.present && !sourcesHip.present) {
       linkOnly.present = true;
+    }
+
+    // if -x was not found, assume all c++ sources are HIP
+    if (dashX.present == false) {
+      sourcesHip.present = true;
+      sourcesHip.values.insert(sourcesHip.values.end(),
+                                    sourcesCpp.values.begin(),
+                                    sourcesCpp.values.end());
+      sourcesCpp.present = false;
+      sourcesCpp.values.clear();
     }
 
     return remainingArgs;
@@ -698,7 +686,7 @@ vector<string> excludedArgs{
     "-D__HIP_PLATFORM_SPIRV__=1",
 };
 
-vector<string> argsFilter(vector<string> argsIn) {
+vector<string> argsFilter(const vector<string> &argsIn) {
   vector<string> argsOut;
   for (int i = 0; i < argsIn.size(); i++) {
     auto found = find(excludedArgs.begin(), excludedArgs.end(), argsIn[i]);
@@ -742,7 +730,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   auto processedArgs = opts.processArgs(argv);
 
   // parse -x
-  processedArgs = opts.parseSources(processedArgs);
+  processedArgs = opts.processSources(processedArgs);
 
   const OsType &os = getOSInfo();
   string hip_compile_cxx_as_hip;
@@ -834,16 +822,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   for (auto arg : processedArgs)
     CMD += " " + arg;
 
-  // if -x was not found, assume all c++ sources are HIP
-  if (opts.dashX.present == false) {
-    opts.sourcesHip.present = true;
-    opts.sourcesHip.values.insert(opts.sourcesHip.values.end(),
-                                   opts.sourcesCpp.values.begin(),
-                                   opts.sourcesCpp.values.end());
-    opts.sourcesCpp.present = false;
-    opts.sourcesCpp.values.clear();
-  }
-
   for (auto obj : opts.sourcesObj.values) {
     CMD += " " + obj;
   }
@@ -891,22 +869,10 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
     CMD += " " + opts.MF.values[0];
   }
 
-  // if there is more than once instance of "--offload=spirv64" in the command,
-  // leave only 1
-  // std::string target = "--offload=spirv64";
-  // size_t firstPos = CMD.find(target);
-  // if (firstPos != std::string::npos) {
-  //   size_t nextPos;
-  //   while ((nextPos = CMD.find(target, firstPos + 1)) != std::string::npos) {
-  //     CMD.erase(nextPos, target.length());
-  //   }
-  // }
-
   if (opts.verbose & 0x1) {
     cout << "hipcc-cmd: " << CMD << "\n";
   }
 
-  opts.runCmd.present = true;
   if (opts.runCmd.present) {
     SystemCmdOut sysOut;
     sysOut = hipBinUtilPtr_->exec(CMD.c_str(), true);
