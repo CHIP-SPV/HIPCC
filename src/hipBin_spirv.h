@@ -370,8 +370,7 @@ public:
       } else if (prevArg == "-MF") {
         MF.present = true;
         MF.matches.push_back("-MF " + arg);
-      } 
-      else {
+      } else {
         // pass through all other arguments
         remainingArgs.push_back(arg);
         remainingArgsStr += " " + arg;
@@ -395,9 +394,8 @@ public:
     return remainingArgs;
   }
 
-  bool argIsCppSource(string arg) {
-    vector<string> cppExtensions = {".cpp", ".cxx", ".cc"};
-    for (auto ext : cppExtensions) {
+  bool argIsXSource(const string &arg, const vector<string> &extensions) {
+    for (const auto &ext : extensions) {
       auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
       if (arg.substr(substridx) == ext)
         return true;
@@ -406,38 +404,17 @@ public:
     return false;
   }
 
-  bool argIsHipSource(string arg) {
-    vector<string> cppExtensions = {".hip", ".cu"};
-    for (auto ext : cppExtensions) {
-      auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
-      if (arg.substr(substridx) == ext)
-        return true;
-    }
-
-    return false;
+  bool argIsCppSource(const string &arg) {
+    return argIsXSource(arg, {".cpp", ".cxx", ".cc"});
   }
 
-  bool argIsCSource(string arg) {
-    vector<string> cExtensions = {".c"};
-    for (auto ext : cExtensions) {
-      auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
-      if (arg.substr(substridx) == ext)
-        return true;
-    }
-
-    return false;
+  bool argIsHipSource(const string &arg) {
+    return argIsXSource(arg, {".hip", ".cu"});
   }
 
-  bool argIsObject(string arg) {
-    vector<string> objExtensions = {".o"};
-    for (auto ext : objExtensions) {
-      auto substridx = std::max(0, (int)arg.size() - (int)ext.size());
-      if (arg.substr(substridx) == ext)
-        return true;
-    }
+  bool argIsCSource(const string &arg) { return argIsXSource(arg, {".c"}); }
 
-    return false;
-  }
+  bool argIsObject(const string &arg) { return argIsXSource(arg, {".o"}); }
 
   /**
    * @brief Given an array of arugments, extract the sources and classify them
@@ -501,7 +478,6 @@ public:
 
     return remainingArgs;
   }
-
 };
 class HipBinSpirv : public HipBinBase {
 private:
