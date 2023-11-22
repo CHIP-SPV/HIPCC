@@ -300,8 +300,8 @@ public:
     if (dashX.present == false) {
       sourcesHip.present = true;
       sourcesHip.values.insert(sourcesHip.values.end(),
-                                    sourcesCpp.values.begin(),
-                                    sourcesCpp.values.end());
+                               sourcesCpp.values.begin(),
+                               sourcesCpp.values.end());
       sourcesCpp.present = false;
       sourcesCpp.values.clear();
     }
@@ -381,23 +381,11 @@ const string &HipBinSpirv::getHipLdFlags() const { return hipLdFlags_; }
 void HipBinSpirv::initializeHipLdFlags() {
   string hipLibPath;
   string hipLdFlags = hipInfo_.ldflags;
-  // const string &hipClangPath = getCompilerPath();
-  // // If $HIPCC clang++ is not compiled, use clang instead
-  // string hipCC = "\"" + hipClangPath + "/clang++";
-
-  // hipLibPath = getHipLibPath();
-  // hipLdFlags += " -L\"" + hipLibPath + "\"";
-  // const OsType &os = getOSInfo();
 
   hipLdFlags_ = hipLdFlags;
 }
 
 void HipBinSpirv::initializeHipCFlags() {
-  // string hipCFlags = hipInfo_.cxxflags;
-  // string hipclangIncludePath;
-  // hipclangIncludePath = getHipInclude();
-  // hipCFlags += " -isystem \"" + hipclangIncludePath + "\"";
-  // const OsType &os = getOSInfo();
   hipCFlags_ = "-D__HIP_PLATFORM_SPIRV__";
   string hipIncludePath = getHipInclude();
   hipCFlags_ += " -isystem " + hipIncludePath;
@@ -414,22 +402,6 @@ string HipBinSpirv::getHipInclude() const {
 
 void HipBinSpirv::initializeHipCXXFlags() {
   string hipCXXFlags = hipInfo_.cxxflags;
-  // const OsType &os = getOSInfo();
-  // string hipClangIncludePath;
-  // hipClangIncludePath = getCompilerIncludePath();
-  // hipCXXFlags += " -isystem \"" + hipClangIncludePath;
-  // fs::path hipCXXFlagsTempFs = hipCXXFlags;
-  // hipCXXFlagsTempFs /= "..\"";
-  // hipCXXFlags = hipCXXFlagsTempFs.string();
-  // const EnvVariables &var = getEnvVariables();
-  // // Allow __fp16 as function parameter and return type.
-  // if (var.hipClangHccCompactModeEnv_.compare("1") == 0) {
-  //   hipCXXFlags += " -Xclang -fallow-half-arguments-and-returns "
-  //                  "-D__HIP_HCC_COMPAT_MODE__=1";
-  // }
-
-  // Add paths to common HIP includes:
-  string hipIncludePath;
 
   std::smatch Match;
   std::regex R("-include ([\\S]+)/hip/spirv_fixups.h");
@@ -439,8 +411,6 @@ void HipBinSpirv::initializeHipCXXFlags() {
     hipCXXFlags = hipBinUtilPtr_->replaceStr(hipCXXFlags, fixupHeader_, " ");
   }
 
-  //   hipIncludePath = getHipInclude();
-  //   hipCXXFlags += " -isystem \"" + hipIncludePath;
   hipCXXFlags_ = hipCXXFlags;
 }
 
@@ -679,14 +649,24 @@ void HipBinSpirv::printFull() {
   cout << endl;
 }
 
-vector<string> excludedArgs{
-    "--offload=spirv64",
-    "-D__HIP_PLATFORM_SPIRV__",
-    "-D__HIP_PLATFORM_SPIRV__=",
-    "-D__HIP_PLATFORM_SPIRV__=1",
-};
-
+/**
+ * @brief Filter away possible duplicates of --offload=spirv64 and
+ * -D__HIP_PLATFORM_SPIRV__ flags which can be passed in builds that call
+ * hipcc with direct output of hip_config --cpp_flags. We have to include the
+ * flag in the --cpp_flags output to retain the option to use clang++ directly
+ * for HIP compilation instead of hipcc.
+ *
+ * @param argsIn
+ * @return vector<string>
+ */
 vector<string> argsFilter(const vector<string> &argsIn) {
+  vector<string> excludedArgs{
+      "--offload=spirv64",
+      "-D__HIP_PLATFORM_SPIRV__",
+      "-D__HIP_PLATFORM_SPIRV__=",
+      "-D__HIP_PLATFORM_SPIRV__=1",
+  };
+
   vector<string> argsOut;
   for (int i = 0; i < argsIn.size(); i++) {
     auto found = find(excludedArgs.begin(), excludedArgs.end(), argsIn[i]);
@@ -696,27 +676,24 @@ vector<string> argsFilter(const vector<string> &argsIn) {
   return argsOut;
 }
 
-void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
-  vector<string> argv;
-  // Filter away a possible duplicate --offload=spirv64 flag which can be passed
-  // in builds that call hipcc with direct output of hip_config --cpp_flags.
-  // We have to include the flag in the --cpp_flags output to retain the
-  // option to use clang++ directly for HIP compilation instead of hipcc.
-  argv = argsFilter(origArgv);
-
+void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   if (argv.size() < 2) {
     cout << "No Arguments passed, exiting ...\n";
     exit(EXIT_SUCCESS);
   }
 
+  // filter out chipStar flags that could have been passed in from hipConfig
+  argv = argsFilter(argv);
+
   // drop the first argument as it's the name of the binary
   argv.erase(argv.begin());
 
-  cout << "INVOKING HIPCC DEBUG:\n";
-  for (auto arg : origArgv) {
-    cout << "\"" << arg << "\", ";
-  }
-  cout << endl;
+  // for generating dgb arg list
+  // cout << "INVOKING HIPCC DEBUG:\n";
+  // for (auto arg : argv) {
+  //   cout << "\"" << arg << "\", ";
+  // }
+  // cout << endl;
 
   CompilerOptions opts;
   EnvVariables var = getEnvVariables();
@@ -729,7 +706,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // check arguments to figure out if we need to compile, link, or both + other
   auto processedArgs = opts.processArgs(argv);
 
-  // parse -x
+  // parse sources handling -x<lang> cases
   processedArgs = opts.processSources(processedArgs);
 
   const OsType &os = getOSInfo();
