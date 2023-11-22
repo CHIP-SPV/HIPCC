@@ -98,194 +98,29 @@ public:
  *
  */
 class Argument {
-private:
-  // Should this arg be passed onto clang++ invocation
-  bool passthrough_ = true;
-
 public:
-  // Is the argument present/enabled
   bool present = false;
-  std::vector<string> matches;
-  // Any additional arguments to this argument.
-  // Example: "MyName" in `hipcc <...> -o MyName`
-  string args;
-  // Regex for which a match enables this argument
-  regex regexp;
-
+  std::vector<string> values;
   Argument(){};
-  Argument(string regexpIn) : regexp(regexpIn){};
-  Argument(string regexpIn, bool passthrough)
-      : passthrough_(passthrough), regexp(regexpIn){};
-  /**
-   * @brief Parse the compiler invocation and enable this argument
-   *
-   * @param argline string reprenting the campiler invocation
-   */
-  void parseLine(string &argline) {
-    smatch match;
-    std::string arglineCopy{argline.c_str()};
-    while (regex_search(arglineCopy, match, regexp)) {
-      present = true;
-
-      // get the matched argument
-      string arg = match[0].str();
-
-      // remove leading and trailing whitespace
-      arg.erase(0, arg.find_first_not_of(" \t\n\r"));
-      arg.erase(arg.find_last_not_of(" \t\n\r") + 1);
-
-      // string replace arg with nothing
-      // arglineCopy.replace(arglineCopy.find(arg), arg.length(), "");
-      std::string removeArgRegex = arg;
-      if (arg.find('.') != string::npos)
-        removeArgRegex.replace(removeArgRegex.find('.'), 1, "\\.");
-      if (arg.find('/') != string::npos)
-        removeArgRegex.replace(removeArgRegex.find('/'), 1, "\\/");
-      arglineCopy = regex_replace(arglineCopy, regex(removeArgRegex), "");
-
-      // if this arg is not meant to be passed on, remove it from the argline
-      if (!passthrough_) {
-        argline = regex_replace(argline, regex(removeArgRegex), "");
-      }
-
-      matches.push_back(arg);
-    }
-  }
 };
-
-/**
- * @brief Extarct all source files from argline. Here sources are defined as
- * anything that has a . in it but do not end in .o
- *
- * @param argline
- * @param del
- * @return std::vector<std::string>
- */
-std::vector<std::string> extractSources(std::string &argline, bool del = true) {
-  std::vector<std::string> sources;
-  /*
-  (         # Start of the capturing group
-  (\\S+     # Match one or more non-whitespace characters (\\S matches a
-  non-whitespace character, + specifies one or more times)
-  \\.       # Match a literal dot character (\\. matches a dot, because a dot is
-  a special character in regex)
-  (?!o\\b)  # Negative lookahead assertion that asserts what immediately follows
-  is not the character "o" followed by a word boundary (\\b is a word boundary)
-  [^.\\s]+  # Match one or more characters that are neither a dot nor a
-  whitespace ([^...] defines a negated character class, matching one character
-  not in the set) )           # End of the capturing group
-  */
-  std::regex regexp("((\\S+\\.(?!o\\b)[^.\\s]+))");
-  std::smatch match;
-  while (std::regex_search(argline, match, regexp)) {
-    // get the matched argument
-    std::string arg = match[0].str();
-
-    // remove leading and trailing whitespace
-    arg.erase(0, arg.find_first_not_of(" \t\n\r"));
-    arg.erase(arg.find_last_not_of(" \t\n\r") + 1);
-
-    if (arg.find('.') != string::npos)
-      arg.replace(arg.find('.'), 1, "\\.");
-    // replace all instances of / with \\/
-    size_t pos = 0;
-    while ((pos = arg.find("/", pos)) != std::string::npos) {
-      arg.replace(pos, 1, "\\/");
-      pos += 3;
-    }
-    if (del)
-      argline = std::regex_replace(argline, std::regex(arg), "");
-
-    sources.push_back(arg);
-  }
-  return sources;
-}
-
-/**
- * @brief Parse -x <LANG> from argline, removing it from argline and all sources
- * following -x <LANG> option
- *
- * @param argLine string representing the compiler invocation
- * @return std::vector<std::string> 0th element contains <LANG>, rest are
- * sources
- */
-std::vector<std::string> parseDashX(std::string &argLine) {
-  /*
-  \s          # Match a whitespace character
-  -x          # Match the characters "-x" literally
-  \s*         # Match zero or more whitespace characters (\s matches whitespace,
-  * specifies zero or more times)
-  (.+?)       # Capture one or more of any character (except for a line
-  terminator), but as few as possible, into group 1 (. matches any character, +
-  specifies one or more times, ? makes the + non-greedy)
-  (?:         # Start of a non-capturing group (?:... specifies a non-capturing
-  group) \s        # Match a whitespace character |           # OR $         #
-  Match the end of the string )           # End of the non-capturing group
-  */
-  std::regex regexp("\\s-x\\s*(.+?)(?:\\s|$)");
-  std::smatch match;
-  std::vector<std::string> result;
-  if (std::regex_search(argLine, match, regexp)) {
-    // get the matched argument
-    std::string arg = match[0].str();
-    std::string lang = match[1].str();
-    result.push_back(lang);
-
-    // split & remove -x <LANG> from argline, split into before and after
-    auto beforeDashX = argLine.substr(0, argLine.find(arg));
-    auto afterDashX = argLine.substr(argLine.find(arg) + arg.length());
-
-    // extract (and remove) sources from the part that comes after -x <LANG>
-    auto sourcesAfterDashX = extractSources(afterDashX);
-    // push sources to result
-    result.insert(result.end(), sourcesAfterDashX.begin(),
-                  sourcesAfterDashX.end());
-
-    argLine = beforeDashX + afterDashX;
-  }
-
-  return result;
-}
 
 class CompilerOptions {
 public:
   int verbose = 0x1; // 0x1=commands, 0x2=paths, 0x4=hipcc args
   // bool setStdLib = 0; // set if user explicitly requests -stdlib=libc++
-  /**
-   * Use compilation mode if any of these matches:
-   * - [whitespace]-c[whitespace]
-   * - [whitespace][whatever].cpp[whitespace]
-   * - [whitespace][whatever].c[whitespace]
-   * - [whitespace][whatever].hip[whitespace]
-   * - [whitespace][whatever].cu[whitespace]
-   */
-  // \s(\w*?\.(cc|cpp))
-  Argument sourcesC{
-      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:c)(?:\\s|$)",
-      false}; // search for source files, removing them from the command line
-  Argument sourcesCpp{
-      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.(?:cc|cpp|hip|cu)(?!\\.o)",
-      false}; // search for source files, removing them from the command line
-  Argument sourcesObj{
-      "(?:\\s|^)[\\.a-zA-Z0-9_\\/-]+\\.o(?:\\s|$)",
-      false}; // search for source files, removing them from the command line
-  Argument
-      sourcesHip; // if -x hip is not specified, all c++ sources are assumed to
-                  // be HIP sources. Otherwise, this is populated by parseDashX
-  Argument compileOnly{
-      "(?:\\s|^)-c(?:\\s|$)",
-      true}; // search for -c, removing it from the command line
-  Argument outputObject{"-o\\s+([\\./\\-\\w]+)", false}; // search for -o
-  Argument dashX; // processed by parseDashX
-  Argument printHipVersion{"(?:\\s|^)--short-version\\b",
-                           false};                         // print HIP version
-  Argument printCXXFlags{"(?:\\s|^)--cxxflags\\b", false}; // print HIPCXXFLAGS
-  Argument printLDFlags{"(?:\\s|^)--ldflags\\b", false};   // print HIPLDFLAGS
+  Argument sourcesC;
+  Argument sourcesCpp;
+  Argument sourcesObj;
+  Argument sourcesHip;
+  Argument compileOnly;
+  Argument outputObject;
+  Argument dashX;
+  Argument printHipVersion;
+  Argument printCXXFlags;
+  Argument printLDFlags;
   Argument runCmd;
-  Argument rdc{"(?:\\s|^)-fgpu-rdc\\b"}; // whether -fgpu-rdc is on
-  Argument offload{"(?:\\s|^)--offload=[^\\s]+",
-                   false}; // search for --offload=spirv64, removing it
-
+  Argument rdc;
+  Argument offload;
   Argument linkOnly;
   Argument MT;
   Argument MF;
@@ -294,7 +129,15 @@ public:
   vector<string> cppSources;
   vector<string> hipSources;
 
-  vector<string> preprocessArgs(vector<string> argv) {
+  /**
+   * @brief Pre-process given command line args to make parsing easier
+   * 1. replace all instances of multiple whitespaces with one
+   * 2. convert -x <lang> to -x<lang>
+   *
+   * @param argv command line arguments
+   * @return vector<string>
+   */
+  vector<string> preprocessArgs(const vector<string> &argv) {
     string argvStr;
     for (auto arg : argv) {
       argvStr += " " + arg;
@@ -309,9 +152,8 @@ public:
     // convert argvStr back to array by splitting on whitespace
     vector<string> argvNew;
     std::istringstream iss(argvStr);
-    for (std::string s; iss >> s;) {
+    for (std::string s; iss >> s;)
       argvNew.push_back(s);
-    }
 
     return argvNew;
   }
@@ -355,7 +197,7 @@ public:
         continue; // don't pass it on
       } else if (prevArg == "-o") {
         outputObject.present = true;
-        outputObject.matches.push_back("-o " + arg);
+        outputObject.values.push_back("-o " + arg);
         // outputObject.matches.push_back("-o  \"" + arg +
         //                                "\""); // store the output name
       } else if (arg == "-MT") {
@@ -363,13 +205,13 @@ public:
         continue; // don't pass it on
       } else if (prevArg == "-MT") {
         MT.present = true;
-        MT.matches.push_back("-MT " + arg);
+        MT.values.push_back("-MT " + arg);
       } else if (arg == "-MF") {
         prevArg = arg;
         continue; // don't pass it on
       } else if (prevArg == "-MF") {
         MF.present = true;
-        MF.matches.push_back("-MF " + arg);
+        MF.values.push_back("-MF " + arg);
       } else {
         // pass through all other arguments
         remainingArgs.push_back(arg);
@@ -446,25 +288,25 @@ public:
       } else if (arg == "-x") {
         assert(!"Error: -x <lang> should have been converted to -x<lang>");
       } else if (parsingDashXc) {
-        sourcesC.matches.push_back(arg);
+        sourcesC.values.push_back(arg);
       } else if (parsingDashXcpp) {
-        sourcesCpp.matches.push_back(arg);
+        sourcesCpp.values.push_back(arg);
       } else if (parsingDashXhip) {
-        sourcesHip.matches.push_back(arg);
+        sourcesHip.values.push_back(arg);
         // dealt with -x cases, now deal with everything else
 
       } else if (argIsCSource(arg)) {
         sourcesC.present = true;
-        sourcesC.matches.push_back(arg);
+        sourcesC.values.push_back(arg);
       } else if (argIsCppSource(arg)) {
         sourcesCpp.present = true;
-        sourcesCpp.matches.push_back(arg);
+        sourcesCpp.values.push_back(arg);
       } else if (argIsHipSource(arg)) {
         sourcesHip.present = true;
-        sourcesHip.matches.push_back(arg);
+        sourcesHip.values.push_back(arg);
       } else if (argIsObject(arg)) {
         sourcesObj.present = true;
-        sourcesObj.matches.push_back(arg);
+        sourcesObj.values.push_back(arg);
       } else {
         remainingArgs.push_back(arg);
         remainingArgsStr += " " + arg;
@@ -995,20 +837,20 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   // if -x was not found, assume all c++ sources are HIP
   if (opts.dashX.present == false) {
     opts.sourcesHip.present = true;
-    opts.sourcesHip.matches.insert(opts.sourcesHip.matches.end(),
-                                   opts.sourcesCpp.matches.begin(),
-                                   opts.sourcesCpp.matches.end());
+    opts.sourcesHip.values.insert(opts.sourcesHip.values.end(),
+                                   opts.sourcesCpp.values.begin(),
+                                   opts.sourcesCpp.values.end());
     opts.sourcesCpp.present = false;
-    opts.sourcesCpp.matches.clear();
+    opts.sourcesCpp.values.clear();
   }
 
-  for (auto obj : opts.sourcesObj.matches) {
+  for (auto obj : opts.sourcesObj.values) {
     CMD += " " + obj;
   }
 
-  if (opts.sourcesHip.present && opts.sourcesHip.matches.size() > 0) {
+  if (opts.sourcesHip.present && opts.sourcesHip.values.size() > 0) {
     std::string compileSources = " -x hip ";
-    for (auto m : opts.sourcesHip.matches) {
+    for (auto m : opts.sourcesHip.values) {
       compileSources += m + " ";
     }
     CMD += compileSources;
@@ -1017,7 +859,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
 
   if (opts.sourcesCpp.present) {
     std::string compileSources = " -x c++ ";
-    for (auto m : opts.sourcesCpp.matches) {
+    for (auto m : opts.sourcesCpp.values) {
       compileSources += m + " ";
     }
     CMD += compileSources;
@@ -1026,7 +868,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
 
   if (opts.sourcesC.present) {
     std::string compileSources = " -x c ";
-    for (auto m : opts.sourcesC.matches) {
+    for (auto m : opts.sourcesC.values) {
       compileSources += m + " ";
     }
     CMD += compileSources;
@@ -1034,7 +876,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   }
 
   if (opts.outputObject.present) {
-    CMD += " " + opts.outputObject.matches[0];
+    CMD += " " + opts.outputObject.values[0];
   }
 
   if (!opts.compileOnly.present) {
@@ -1042,11 +884,11 @@ void HipBinSpirv::executeHipCCCmd(vector<string> origArgv) {
   }
 
   if (opts.MT.present) {
-    CMD += " " + opts.MT.matches[0];
+    CMD += " " + opts.MT.values[0];
   }
 
   if (opts.MF.present) {
-    CMD += " " + opts.MF.matches[0];
+    CMD += " " + opts.MF.values[0];
   }
 
   // if there is more than once instance of "--offload=spirv64" in the command,
