@@ -174,6 +174,9 @@ public:
       if (arg == "-c") {
         compileOnly.present = true;
         remainingArgs.push_back(arg);
+      } else if (arg == "--genco") {
+        compileOnly.present = true;
+        remainingArgs.push_back("-c");
       } else if (arg == "--offload=spirv64") {
         offload.present = true;
       } else if (arg == "-fgpu-rdc") {
