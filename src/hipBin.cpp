@@ -183,7 +183,7 @@ void HipBin::executeHipConfig(int argc, char* argv[]) {
         break;
       case check: platformPtrs.at(j)->checkHipconfig();
         break;
-      case newline: platformPtrs.at(j)->printFull();
+      case newline:
         cout << endl;
         break;
       default:
