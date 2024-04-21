@@ -171,6 +171,12 @@ public:
     vector<string> remainingArgs;
     string prevArg = "";
     for (auto arg : argv) {
+      // add an escape for every quote if the argument starts with -D
+      if (arg.length() > 2 && arg.substr(0, 2) == "-D") {
+        arg = regex_replace(arg, regex("\""), "\\\"");
+        arg = regex_replace(arg, regex("\'"), "\\\'");
+      }
+
       if (arg == "-c") {
         compileOnly.present = true;
         remainingArgs.push_back(arg);
