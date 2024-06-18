@@ -66,6 +66,7 @@ public:
   string ldflags = "";
   string rdcSupplementLinkFlags = "";
   string clangpath = "";
+  string hipPath = "";
 
   void parseLine(string line) {
     if (line.find(HIP_RUNTIME) != string::npos) {
@@ -86,6 +87,9 @@ public:
       // TODO check if llvm-config exists here
       clangpath = line.substr(string(HIP_CLANG_PATH).size() +
                               1); // add + 1 to account for =
+    } else if (line.find(HIP_PATH) != string::npos) {
+      hipPath = line.substr(string(HIP_PATH).size() +
+                            1); // add + 1 to account for =
     } else {
     }
 
@@ -324,9 +328,9 @@ private:
   string hipClangPath_ = "";
   PlatformInfo platformInfo_;
   string hipCFlags_, hipCXXFlags_, hipLdFlags_, fixupHeader_;
-  HipInfo hipInfo_;
 
 public:
+  HipInfo hipInfo_;
   HipBinSpirv();
   virtual ~HipBinSpirv() = default;
   virtual bool detectPlatform();
