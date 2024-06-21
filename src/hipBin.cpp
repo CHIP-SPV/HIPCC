@@ -82,13 +82,13 @@ HipBin::HipBin() {
     platformDetected = true;
   } 
   
-  if (hipBinNVPtr_->detectPlatform()) {
-    // populates the struct with Nvidia info
-    const PlatformInfo& platformInfo = hipBinNVPtr_->getPlatformInfo();
-    platformVec_.push_back(platformInfo);
-    hipBinBasePtrs_.push_back(hipBinNVPtr_);
-    platformDetected = true;
-  } 
+  // if (hipBinNVPtr_->detectPlatform()) {
+  //   // populates the struct with Nvidia info
+  //   const PlatformInfo& platformInfo = hipBinNVPtr_->getPlatformInfo();
+  //   platformVec_.push_back(platformInfo);
+  //   hipBinBasePtrs_.push_back(hipBinNVPtr_);
+  //   platformDetected = true;
+  // } 
   
   // if no device is detected, then it is defaulted to AMD
   if (!platformDetected) {
