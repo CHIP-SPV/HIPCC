@@ -109,6 +109,12 @@ public:
   Argument(bool presentIn) : present(presentIn){};
 };
 
+// Add this helper function at the top of the file or in a utility header
+bool endsWith(const std::string& str, const std::string& suffix) {
+    return str.size() >= suffix.size() &&
+           str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
 class CompilerOptions {
 public:
   int verbose = 0x0; // 0x1=commands, 0x2=paths, 0x4=hipcc args
@@ -133,6 +139,7 @@ public:
   vector<string> cSources;
   vector<string> cppSources;
   vector<string> hipSources;
+  vector<string> orderedObjects; // New member to store ordered objects
 
   /**
    * @brief Pre-process given command line args to make parsing easier
@@ -299,9 +306,10 @@ public:
       } else if (argIsHipSource(arg)) {
         sourcesHip.present = true;
         sourcesHip.values.push_back(arg);
-      } else if (argIsObject(arg)) {
+      } else if (argIsObject(arg) || endsWith(arg, ".a")) {
         sourcesObj.present = true;
         sourcesObj.values.push_back(arg);
+        orderedObjects.push_back(arg); // Add to ordered list
       } else {
         remainingArgs.push_back(arg);
       }
@@ -817,7 +825,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
     CMD += " " + arg;
 
   // append all objects
-  for (auto obj : opts.sourcesObj.values) {
+  for (auto obj : opts.orderedObjects) {
     CMD += " " + obj;
   }
 
