@@ -135,6 +135,7 @@ public:
   Argument linkOnly;
   Argument MT;
   Argument MF;
+  Argument perThreadDefaultStream;
   vector<string> defaultSources;
   vector<string> cSources;
   vector<string> cppSources;
@@ -228,6 +229,11 @@ public:
         MF.values.push_back("-MF " + arg);
       } else if (arg == "--use_fast_math") {
         cout << "Warning: --use_fast_math is not supported and will be ignored." << endl;
+        continue;
+      } else if (arg == "-fgpu-default-stream=per-thread") {
+        perThreadDefaultStream.present = true;
+      } else if (arg == "-fgpu-default-stream=legacy") {
+        // Ignore this option
         continue;
       } else {
         // pass through all other arguments
@@ -870,6 +876,10 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
 
   if (opts.MF.present) {
     CMD += " " + opts.MF.values[0];
+  }
+
+  if (opts.perThreadDefaultStream.present) {
+    CMD += " -DHIP_API_PER_THREAD_DEFAULT_STREAM";
   }
 
   if (opts.verbose & 0x1) {
