@@ -151,23 +151,23 @@ public:
    * @return vector<string>
    */
   vector<string> preprocessArgs(const vector<string> &argv) {
+    vector<string> preprocessedArgs;
+    for (size_t i = 0; i < argv.size(); ++i) {
+        if (argv[i] == "-x" && i + 1 < argv.size()) {
+            preprocessedArgs.push_back(argv[i] + argv[i + 1]);
+            ++i;  // Skip the next argument
+        } else {
+            preprocessedArgs.push_back(argv[i]);
+        }
+    }
+    return preprocessedArgs;
+    vector<string> argvNew;
     string argvStr;
     for (auto arg : argv) {
-      argvStr += " " + arg;
+      argvStr = regex_replace(arg, regex("\\s+"), " ");
+      argvStr = regex_replace(argvStr, regex("\\s-x\\s"), " -x");
+      argvNew.push_back(argvStr);
     }
-
-    // replace all instances of multiple whitespaces with one
-    argvStr = regex_replace(argvStr, regex("\\s+"), " ");
-
-    // convert -x <lang> to -x<lang>
-    argvStr = regex_replace(argvStr, regex("\\s-x\\s"), " -x");
-
-    // convert argvStr back to array by splitting on whitespace
-    vector<string> argvNew;
-    std::istringstream iss(argvStr);
-    for (std::string s; iss >> s;)
-      argvNew.push_back(s);
-
     return argvNew;
   }
 
@@ -187,6 +187,7 @@ public:
       if (arg.length() > 2 && arg.substr(0, 2) == "-D") {
         arg = regex_replace(arg, regex("\""), "\\\"");
         arg = regex_replace(arg, regex("\'"), "\\\'");
+        arg = regex_replace(arg, regex(" "), "\\\ ");
       }
 
       if (arg == "-c") {
