@@ -479,12 +479,13 @@ const string &HipBinSpirv::getCompilerPath() const { return hipClangPath_; }
 
 void HipBinSpirv::printCompilerInfo() const {
   const string &hipClangPath = getCompilerPath();
+  fs::path hipLlvmPath = hipClangPath;
 
   cout << endl;
 
-  string cmd = hipClangPath + "/clang++ --version";
+  string cmd = (hipLlvmPath / "clang++ --version").string();
   system(cmd.c_str()); // hipclang version
-  cmd = hipClangPath + "/llc --version";
+  cmd = (hipLlvmPath / "llc --version").string();
   system(cmd.c_str()); // llc version
   cout << "hip-clang-cxxflags :" << endl;
   cout << hipInfo_.cxxflags << endl;
@@ -531,7 +532,8 @@ string HipBinSpirv::getCppConfig() { return hipInfo_.cxxflags; }
 string HipBinSpirv::getDeviceLibPath() const { return ""; }
 
 bool HipBinSpirv::detectPlatform() {
-  if (getOSInfo() == windows) {
+  auto os = getOSInfo();
+  if (os == windows) {
     return false;
   }
 
@@ -549,8 +551,7 @@ bool HipBinSpirv::detectPlatform() {
    */
 
   HipInfo hipInfo;
-  fs::path currentBinaryPath = fs::canonical("/proc/self/exe");
-  currentBinaryPath = currentBinaryPath.parent_path();
+  fs::path currentBinaryPath = hipBinUtilPtr_->getSelfPath();
   fs::path sharePathBuild = currentBinaryPath.string() + "/../share";
   fs::path sharePathInstall =
       var.hipPathEnv_.empty() ? "" : var.hipPathEnv_ + "/share";
