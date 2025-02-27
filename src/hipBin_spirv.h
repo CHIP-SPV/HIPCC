@@ -258,7 +258,7 @@ public:
   }
 
   bool argIsCppSource(const string &arg) {
-    return argIsXSource(arg, {".cpp", ".cxx", ".cc", "C"});
+    return argIsXSource(arg, {".cpp", ".cxx", ".cc", ".C"});
   }
 
   bool argIsHipSource(const string &arg) {
