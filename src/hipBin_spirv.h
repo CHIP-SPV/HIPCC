@@ -286,14 +286,17 @@ public:
         sourcesC.present = true;
         parsingDashXc = true;
         dashX.present = true;
+	remainingArgs.push_back(arg);
       } else if (arg == "-xc++") {
         sourcesCpp.present = true;
         parsingDashXcpp = true;
         dashX.present = true;
+	remainingArgs.push_back(arg);
       } else if (arg == "-xhip") {
         sourcesHip.present = true;
         parsingDashXhip = true;
         dashX.present = true;
+	remainingArgs.push_back(arg);
       } else if (arg == "-x") {
         assert(!"Error: -x <lang> should have been converted to -x<lang>");
       } else if (parsingDashXc) {
