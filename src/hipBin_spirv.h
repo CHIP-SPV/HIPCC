@@ -297,44 +297,41 @@ public:
       } else if (arg == "-x") {
         assert(!"Error: -x <lang> should have been converted to -x<lang>");
       } else if (parsingDashXc) {
-        sourcesC.values.push_back(arg);
+	 sourcesC.values.push_back(arg);
+	 remainingArgs.push_back(arg);
       } else if (parsingDashXcpp) {
-        sourcesCpp.values.push_back(arg);
+	 sourcesCpp.values.push_back(arg);
+	 remainingArgs.push_back(arg);
       } else if (parsingDashXhip) {
-        sourcesHip.values.push_back(arg);
+	 sourcesHip.values.push_back(arg);
+	 remainingArgs.push_back(arg);
         // dealt with -x cases, now deal with everything else
 
       } else if (argIsCSource(arg)) {
         sourcesC.present = true;
-        sourcesC.values.push_back(arg);
+	 sourcesC.values.push_back(arg);
+	 remainingArgs.push_back(" -x c "+arg);
       } else if (argIsCppSource(arg)) {
         sourcesCpp.present = true;
-        sourcesCpp.values.push_back(arg);
+	 sourcesCpp.values.push_back(arg);
+	 remainingArgs.push_back(" -x hip "+arg);
       } else if (argIsHipSource(arg)) {
-        sourcesHip.present = true;
-        sourcesHip.values.push_back(arg);
+         sourcesHip.present = true;
+	 sourcesHip.values.push_back(arg);
+         remainingArgs.push_back(" -x hip "+arg);
       } else if (argIsObject(arg) || endsWith(arg, ".a")) {
-        sourcesObj.present = true;
-        sourcesObj.values.push_back(arg);
-        orderedObjects.push_back(arg); // Add to ordered list
+         sourcesObj.present = true;
+	 sourcesObj.values.push_back(arg);
+	 orderedObjects.push_back(arg); // Add to ordered list
+	 remainingArgs.push_back(arg);
       } else {
-        remainingArgs.push_back(arg);
+         remainingArgs.push_back(arg);
       }
     } // end arg loop
 
     // check if we need to compile anything, if not, linkOnly is true
     if (!sourcesC.present && !sourcesCpp.present && !sourcesHip.present) {
       linkOnly.present = true;
-    }
-
-    // if -x was not found, assume all c++ sources are HIP
-    if (dashX.present == false) {
-      sourcesHip.present = true;
-      sourcesHip.values.insert(sourcesHip.values.end(),
-                               sourcesCpp.values.begin(),
-                               sourcesCpp.values.end());
-      sourcesCpp.present = false;
-      sourcesCpp.values.clear();
     }
 
     return remainingArgs;
@@ -831,35 +828,15 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   for (auto arg : processedArgs)
     CMD += " " + arg;
 
-  // append all objects
-  for (auto obj : opts.orderedObjects) {
-    CMD += " " + obj;
-  }
-
   if (opts.sourcesHip.present && opts.sourcesHip.values.size() > 0) {
-    std::string compileSources = " -x hip ";
-    for (auto m : opts.sourcesHip.values) {
-      compileSources += m + " ";
-    }
-    CMD += compileSources;
     CMD += HIPCXXFLAGS;
   }
 
   if (opts.sourcesCpp.present) {
-    std::string compileSources = " -x c++ ";
-    for (auto m : opts.sourcesCpp.values) {
-      compileSources += m + " ";
-    }
-    CMD += compileSources;
     CMD += HIPCXXFLAGS;
   }
 
   if (opts.sourcesC.present) {
-    std::string compileSources = " -x c ";
-    for (auto m : opts.sourcesC.values) {
-      compileSources += m + " ";
-    }
-    CMD += compileSources;
     CMD += HIPCFLAGS;
   }
 
