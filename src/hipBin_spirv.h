@@ -297,35 +297,35 @@ public:
       } else if (arg == "-x") {
         assert(!"Error: -x <lang> should have been converted to -x<lang>");
       } else if (parsingDashXc) {
-	 sourcesC.values.push_back(arg);
-	 remainingArgs.push_back(arg);
+	sourcesC.values.push_back(arg);
+	remainingArgs.push_back(arg);
       } else if (parsingDashXcpp) {
-	 sourcesCpp.values.push_back(arg);
-	 remainingArgs.push_back(arg);
+	sourcesCpp.values.push_back(arg);
+	remainingArgs.push_back(arg);
       } else if (parsingDashXhip) {
-	 sourcesHip.values.push_back(arg);
-	 remainingArgs.push_back(arg);
+	sourcesHip.values.push_back(arg);
+	remainingArgs.push_back(arg);
         // dealt with -x cases, now deal with everything else
 
       } else if (argIsCSource(arg)) {
         sourcesC.present = true;
-	 sourcesC.values.push_back(arg);
-	 remainingArgs.push_back(" -x c "+arg);
+	sourcesC.values.push_back(arg);
+	remainingArgs.push_back(" -x c "+arg);
       } else if (argIsCppSource(arg)) {
         sourcesCpp.present = true;
-	 sourcesCpp.values.push_back(arg);
-	 remainingArgs.push_back(" -x hip "+arg);
+	sourcesCpp.values.push_back(arg);
+	remainingArgs.push_back(" -x hip "+arg);
       } else if (argIsHipSource(arg)) {
-         sourcesHip.present = true;
-	 sourcesHip.values.push_back(arg);
-         remainingArgs.push_back(" -x hip "+arg);
+        sourcesHip.present = true;
+	sourcesHip.values.push_back(arg);
+        remainingArgs.push_back(" -x hip "+arg);
       } else if (argIsObject(arg) || endsWith(arg, ".a")) {
-         sourcesObj.present = true;
-	 sourcesObj.values.push_back(arg);
-	 orderedObjects.push_back(arg); // Add to ordered list
-	 remainingArgs.push_back(arg);
+        sourcesObj.present = true;
+	sourcesObj.values.push_back(arg);
+	orderedObjects.push_back(arg); // Add to ordered list
+	remainingArgs.push_back(arg);
       } else {
-         remainingArgs.push_back(arg);
+        remainingArgs.push_back(arg);
       }
     } // end arg loop
 
