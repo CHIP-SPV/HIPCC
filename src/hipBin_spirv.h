@@ -830,7 +830,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   // append all user provided arguments that weren't handled
   for (auto arg : processedArgs)
     CMD += " " + arg;
-
+  CMD += " ";
   if (opts.sourcesHip.present && opts.sourcesHip.values.size() > 0) {
     CMD += HIPCXXFLAGS;
   }
