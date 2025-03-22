@@ -119,28 +119,22 @@ class CompilerOptions {
 public:
   int verbose = 0x0; // 0x1=commands, 0x2=paths, 0x4=hipcc args
   // bool setStdLib = 0; // set if user explicitly requests -stdlib=libc++
-  Argument sourcesC;
-  Argument sourcesCpp;
-  Argument sourcesObj;
-  Argument sourcesHip;
-  Argument compileOnly;
+  bool sourcesC_present = false;
+  bool sourcesCpp_present = false;
+  bool sourcesObj_present = false;
+  bool sourcesHip_present = false;
+  bool compileOnly = false;
   Argument outputObject;
-  Argument dashX;
-  Argument printHipVersion;
-  Argument printCXXFlags;
-  Argument printLDFlags;
-  Argument runCmd{true};
-  Argument rdc;
-  Argument offload;
-  Argument linkOnly;
+  bool printHipVersion = false;
+  bool printCXXFlags = false;
+  bool printLDFlags = false;
+  bool runCmd = true;
+  bool rdc_present = false;
+  bool offload = false;
+  bool linkOnly = false;
   Argument MT;
   Argument MF;
-  Argument perThreadDefaultStream;
-  vector<string> defaultSources;
-  vector<string> cSources;
-  vector<string> cppSources;
-  vector<string> hipSources;
-  vector<string> orderedObjects; // New member to store ordered objects
+  bool perThreadDefaultStream = false;
 
   /**
    * @brief Pre-process given command line args to make parsing easier
@@ -191,25 +185,25 @@ public:
       }
 
       if (arg == "-c") {
-        compileOnly.present = true;
+        compileOnly = true;
         remainingArgs.push_back(arg);
       } else if (arg == "--genco") {
-        compileOnly.present = true;
+        compileOnly = true;
         remainingArgs.push_back("-c");
       } else if (arg == "--offload=spirv64") {
-        offload.present = true;
+        offload = true;
       } else if (arg == "-fgpu-rdc") {
-        rdc.present = true;
+        rdc_present = true;
         remainingArgs.push_back(arg);
       } else if (arg == "--short-version") {
-        runCmd.present = false;
-        printHipVersion.present = true;
+        runCmd = false;
+        printHipVersion = true;
       } else if (arg == "--cxxflags") {
-        runCmd.present = false;
-        printCXXFlags.present = true;
+        runCmd = false;
+        printCXXFlags = true;
       } else if (arg == "--ldflags") {
-        runCmd.present = false;
-        printLDFlags.present = true;
+        runCmd = false;
+        printLDFlags = true;
       } else if (arg == "-o") {
         prevArg = arg;
         continue; // don't pass it on
@@ -232,7 +226,7 @@ public:
         cout << "Warning: --use_fast_math is not supported and will be ignored." << endl;
         continue;
       } else if (arg == "-fgpu-default-stream=per-thread") {
-        perThreadDefaultStream.present = true;
+        perThreadDefaultStream = true;
       } else if (arg == "-fgpu-default-stream=legacy") {
         // Ignore this option
         continue;
@@ -283,49 +277,38 @@ public:
 
     for (auto arg : argv) {
       if (arg == "-xc") {
-        sourcesC.present = true;
+        sourcesC_present = true;
         parsingDashXc = true;
-        dashX.present = true;
 	remainingArgs.push_back(arg);
       } else if (arg == "-xc++") {
-        sourcesCpp.present = true;
+        sourcesCpp_present = true;
         parsingDashXcpp = true;
-        dashX.present = true;
 	remainingArgs.push_back(arg);
       } else if (arg == "-xhip") {
-        sourcesHip.present = true;
+        sourcesHip_present = true;
         parsingDashXhip = true;
-        dashX.present = true;
 	remainingArgs.push_back(arg);
       } else if (arg == "-x") {
         assert(!"Error: -x <lang> should have been converted to -x<lang>");
       } else if (parsingDashXc) {
-	sourcesC.values.push_back(arg);
 	remainingArgs.push_back(arg);
       } else if (parsingDashXcpp) {
-	sourcesCpp.values.push_back(arg);
 	remainingArgs.push_back(arg);
       } else if (parsingDashXhip) {
-	sourcesHip.values.push_back(arg);
 	remainingArgs.push_back(arg);
         // dealt with -x cases, now deal with everything else
 
       } else if (argIsCSource(arg)) {
-        sourcesC.present = true;
-	sourcesC.values.push_back(arg);
+        sourcesC_present = true;
 	remainingArgs.push_back(" -x c "+arg);
       } else if (argIsCppSource(arg)) {
-        sourcesCpp.present = true;
-	sourcesCpp.values.push_back(arg);
+        sourcesCpp_present = true;
 	remainingArgs.push_back(" -x hip "+arg);
       } else if (argIsHipSource(arg)) {
-        sourcesHip.present = true;
-	sourcesHip.values.push_back(arg);
+        sourcesHip_present = true;
         remainingArgs.push_back(" -x hip "+arg);
       } else if (argIsObject(arg) || endsWith(arg, ".a")) {
-        sourcesObj.present = true;
-	sourcesObj.values.push_back(arg);
-	orderedObjects.push_back(arg); // Add to ordered list
+        sourcesObj_present = true;
 	remainingArgs.push_back(arg);
       } else {
         remainingArgs.push_back(arg);
@@ -333,8 +316,8 @@ public:
     } // end arg loop
 
     // check if we need to compile anything, if not, linkOnly is true
-    if (!sourcesC.present && !sourcesCpp.present && !sourcesHip.present) {
-      linkOnly.present = true;
+    if (!sourcesC_present && !sourcesCpp_present && !sourcesHip_present) {
+      linkOnly = true;
     }
 
     return remainingArgs;
@@ -803,20 +786,20 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   CMD += "";
 
   // Add --hip-link only if it is link only and -fgpu-rdc is on.
-  if (opts.rdc.present && opts.linkOnly.present) {
+  if (opts.rdc_present && opts.linkOnly) {
     CMD += " " + hipInfo_.rdcSupplementLinkFlags;
   }
 
-  if (opts.printHipVersion.present) {
-    if (opts.runCmd.present) {
+  if (opts.printHipVersion) {
+    if (opts.runCmd) {
       cout << "HIP version: ";
     }
     cout << hipVersion << endl;
   }
-  if (opts.printCXXFlags.present) {
+  if (opts.printCXXFlags) {
     cout << HIPCXXFLAGS;
   }
-  if (opts.printLDFlags.present) {
+  if (opts.printLDFlags) {
     cout << HIPLDFLAGS;
   }
 
@@ -830,16 +813,14 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   // append all user provided arguments that weren't handled
   for (auto arg : processedArgs)
     CMD += " " + arg;
+
   CMD += " ";
-  if (opts.sourcesHip.present && opts.sourcesHip.values.size() > 0) {
+  
+  if (opts.sourcesHip_present || opts.sourcesCpp_present) {
     CMD += HIPCXXFLAGS;
   }
 
-  if (opts.sourcesCpp.present) {
-    CMD += HIPCXXFLAGS;
-  }
-
-  if (opts.sourcesC.present) {
+  if (opts.sourcesC_present) {
     CMD += HIPCFLAGS;
   }
 
@@ -847,7 +828,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
     CMD += " " + opts.outputObject.values[0];
   }
 
-  if (!opts.compileOnly.present) {
+  if (!opts.compileOnly) {
     CMD += " " + HIPLDFLAGS;
   }
 
@@ -859,7 +840,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
     CMD += " " + opts.MF.values[0];
   }
 
-  if (opts.perThreadDefaultStream.present) {
+  if (opts.perThreadDefaultStream) {
     CMD += " -DHIP_API_PER_THREAD_DEFAULT_STREAM";
   }
 
@@ -867,7 +848,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
     cout << "hipcc-cmd: " << CMD << "\n";
   }
 
-  if (opts.runCmd.present) {
+  if (opts.runCmd) {
     SystemCmdOut sysOut;
     sysOut = hipBinUtilPtr_->exec(CMD.c_str(), true);
     string cmdOut = sysOut.out;
