@@ -132,6 +132,7 @@ public:
   bool rdc_present = false;
   bool offload = false;
   bool linkOnly = false;
+  bool fastMath = false;
   Argument MT;
   Argument MF;
   bool perThreadDefaultStream = false;
@@ -222,9 +223,9 @@ public:
       } else if (prevArg == "-MF") {
         MF.present = true;
         MF.values.push_back("-MF " + arg);
-      } else if (arg == "--use_fast_math") {
-        cout << "Warning: --use_fast_math is not supported and will be ignored." << endl;
-        continue;
+      } else if (arg == "--use_fast_math" || arg == "-ffast-math") {
+        fastMath = true;
+        continue; // don't pass it on
       } else if (arg == "-fgpu-default-stream=per-thread") {
         perThreadDefaultStream = true;
       } else if (arg == "-fgpu-default-stream=legacy") {
@@ -842,6 +843,10 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
 
   if (opts.perThreadDefaultStream) {
     CMD += " -DHIP_API_PER_THREAD_DEFAULT_STREAM";
+  }
+
+  if (opts.fastMath) {
+    CMD += " -DCHIP_FAST_MATH";
   }
 
   if (opts.verbose & 0x1) {
