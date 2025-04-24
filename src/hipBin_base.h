@@ -120,7 +120,8 @@ string RuntimeTypeStr(RuntimeType runtime) {
 
 enum OsType {
   lnx = 0,
-  windows
+  windows,
+  macos
   // add new OS types to be added here
 };
 
@@ -130,6 +131,8 @@ string OsTypeStr(OsType os) {
     return "linux";
   case windows:
     return "windows";
+  case macos:
+    return "macOS";
   // add new OS types to be added here
   default:
     return "invalid OsType";
@@ -276,6 +279,8 @@ HipBinBase::HipBinBase() {
 void HipBinBase::readOSInfo() {
 #if defined _WIN32 || defined  _WIN64
   osInfo_ = windows;
+#elif defined __APPLE__ || defined  __MACOSX
+  osInfo_ = macos;
 #elif  defined __unix || defined __linux__
   osInfo_ = lnx;
 #endif
@@ -389,8 +394,13 @@ void HipBinBase::getSystemInfo() const {
     system("wmic path win32_VideoController get AdapterCompatibility,"
     "InstalledDisplayDrivers,Name | findstr /B /C:\"Advanced Micro Devices\"");
   } else {
-    assert(os == lnx);
-    cout << endl << "== Linux Kernel" << endl;
+    if (os == lnx) {
+      cout << endl << "== Linux Kernel" << endl;
+    } else if (os == macos) {
+      cout << endl << "== macOS Kernel" << endl;
+    } else {
+      assert(false);
+    }
     cout << "Hostname      : " << std::flush;
     system("hostname");
     system("uname -a");
