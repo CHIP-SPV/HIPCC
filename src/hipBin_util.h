@@ -118,6 +118,9 @@ namespace fs = std::filesystem;
 #endif
 #else
 #include <unistd.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #endif
 
 using std::cout;
@@ -193,31 +196,46 @@ string HipBinUtil::mktempFile(string name) {
   return name;
 }
 
-// gets the path of the executable name
-string HipBinUtil::getSelfPath() const {
+// Helper function to get executable path that works on both Linux and macOS
+inline std::string getExecutablePath() {
   int MAX_PATH_CHAR = 1024;
-  int bufferSize = 0;
-  string path;
+  std::string path;
   #if defined(_WIN32) || defined(_WIN64)
     TCHAR buffer[MAX_PATH] = { 0 };
-    bufferSize = GetModuleFileName(NULL, buffer, MAX_PATH_CHAR);
+    int bufferSize = GetModuleFileName(NULL, buffer, MAX_PATH_CHAR);
     TSIZE pos = TSTR(buffer).find_last_of(ENDLINE);
     TSTR wide = TSTR(buffer).substr(0, pos);
     path = string(wide.begin(), wide.end());
+  #elif defined(__APPLE__)
+    char buff[MAX_PATH_CHAR];
+    uint32_t size = sizeof(buff);
+    int result = _NSGetExecutablePath(buff, &size);
+    if (result == 0) {
+      path = string(buff);
+    } else {
+      cout << "Error getting executable path" << endl;
+      exit(-1);
+    }
   #else
     char buff[MAX_PATH_CHAR];
     ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff) - 1);
     if (len > 0) {
       buff[len] = '\0';
       path = string(buff);
-      fs::path exePath(path);
-      path = exePath.parent_path().string();
     } else {
       cout << "readlink: Error reading the exe path" << endl;
       perror("readlink");
       exit(-1);
     }
   #endif
+  return path;
+}
+
+// gets the path of the executable name
+string HipBinUtil::getSelfPath() const {
+  string path = getExecutablePath();
+  fs::path exePath(path);
+  path = exePath.parent_path().string();
   return path;
 }
 

@@ -5,7 +5,9 @@ project (hipcc.bin)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-set (LINK_LIBS libstdc++fs.so)
+if(NOT APPLE)
+  set (LINK_LIBS libstdc++fs.so)
+endif()
 add_executable(hipcc.bin src/hipBin.cpp)
 if (NOT WIN32) # C++17 does not require the std lib linking
   target_link_libraries(hipcc.bin ${LINK_LIBS} ) # for hipcc

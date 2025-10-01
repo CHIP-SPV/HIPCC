@@ -572,7 +572,7 @@ bool HipBinSpirv::detectPlatform() {
    */
 
   HipInfo hipInfo;
-  fs::path currentBinaryPath = fs::canonical("/proc/self/exe");
+  fs::path currentBinaryPath = getExecutablePath();
   currentBinaryPath = currentBinaryPath.parent_path();
   fs::path sharePathBuild = currentBinaryPath.string() + "/../share";
   fs::path sharePathInstall =
