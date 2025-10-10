@@ -167,26 +167,29 @@ public:
   }
 
   /**
-   * @brief Escape shell metacharacters in a string
-   * Escapes characters that have special meaning in shell: parentheses,
-   * quotes, spaces, redirects, pipes, command separators, and variable expansion
+   * @brief Escape shell metacharacters using backslash escaping
+   * Escapes characters that have special meaning to the shell when arguments
+   * are concatenated into a command string and executed via popen().
    *
-   * @param str String to escape
+   * Note: Single-quote wrapping would be simpler and more robust, but creates
+   * issues with nested shell invocations (chipStar wraps args before calling
+   * hipcc, then hipcc would wrap again before calling clang).
+   *
+   * @param str String to escape  
    * @return Escaped string safe for shell command construction
    */
   string escapeShellMetachars(const string &str) {
-    string result = str;
-    result = regex_replace(result, regex("\""), "\\\"");
-    result = regex_replace(result, regex("\'"), "\\\'");
-    result = regex_replace(result, regex(" "), "\\ ");
-    result = regex_replace(result, regex("\\("), "\\(");
-    result = regex_replace(result, regex("\\)"), "\\)");
-    result = regex_replace(result, regex("\\<"), "\\<");
-    result = regex_replace(result, regex("\\>"), "\\>");
-    result = regex_replace(result, regex("&"), "\\&");
-    result = regex_replace(result, regex("\\|"), "\\|");
-    result = regex_replace(result, regex(";"), "\\;");
-    result = regex_replace(result, regex("\\$"), "\\$");
+    string result;
+    result.reserve(str.size() * 2); // Reserve extra space for escapes
+    for (char c : str) {
+      // Escape shell metacharacters with backslash
+      if (c == '"' || c == '\'' || c == ' ' || c == '(' || c == ')' ||
+          c == '<' || c == '>' || c == '&' || c == '|' || c == ';' || c == '$' ||
+          c == '`' || c == '\\' || c == '\n' || c == '\t') {
+        result += '\\';
+      }
+      result += c;
+    }
     return result;
   }
 
