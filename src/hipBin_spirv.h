@@ -167,6 +167,30 @@ public:
   }
 
   /**
+   * @brief Escape shell metacharacters in a string
+   * Escapes characters that have special meaning in shell: parentheses,
+   * quotes, spaces, redirects, pipes, command separators, and variable expansion
+   *
+   * @param str String to escape
+   * @return Escaped string safe for shell command construction
+   */
+  string escapeShellMetachars(const string &str) {
+    string result = str;
+    result = regex_replace(result, regex("\""), "\\\"");
+    result = regex_replace(result, regex("\'"), "\\\'");
+    result = regex_replace(result, regex(" "), "\\ ");
+    result = regex_replace(result, regex("\\("), "\\(");
+    result = regex_replace(result, regex("\\)"), "\\)");
+    result = regex_replace(result, regex("\\<"), "\\<");
+    result = regex_replace(result, regex("\\>"), "\\>");
+    result = regex_replace(result, regex("&"), "\\&");
+    result = regex_replace(result, regex("\\|"), "\\|");
+    result = regex_replace(result, regex(";"), "\\;");
+    result = regex_replace(result, regex("\\$"), "\\$");
+    return result;
+  }
+
+  /**
    * @brief process arguments and set flags for what to do
    * Handle the cases where options take an argument such as -o <file>, -MT
    * <file>, -MF <file>
@@ -178,20 +202,6 @@ public:
     vector<string> remainingArgs;
     string prevArg = "";
     for (auto arg : argv) {
-      // Escape shell metacharacters for -D options
-      if (arg.length() > 2 && arg.substr(0, 2) == "-D") {
-        arg = regex_replace(arg, regex("\""), "\\\"");
-        arg = regex_replace(arg, regex("\'"), "\\\'");
-        arg = regex_replace(arg, regex(" "), "\\ ");
-        arg = regex_replace(arg, regex("\\("), "\\(");
-        arg = regex_replace(arg, regex("\\)"), "\\)");
-        arg = regex_replace(arg, regex("\\<"), "\\<");
-        arg = regex_replace(arg, regex("\\>"), "\\>");
-        arg = regex_replace(arg, regex("&"), "\\&");
-        arg = regex_replace(arg, regex("\\|"), "\\|");
-        arg = regex_replace(arg, regex(";"), "\\;");
-        arg = regex_replace(arg, regex("\\$"), "\\$");
-      }
 
       if (arg == "-c") {
         compileOnly = true;
@@ -218,19 +228,19 @@ public:
         continue; // don't pass it on
       } else if (prevArg == "-o") {
         outputObject.present = true;
-        outputObject.values.push_back("-o " + arg);
+        outputObject.values.push_back("-o " + escapeShellMetachars(arg));
       } else if (arg == "-MT") {
         prevArg = arg;
         continue; // don't pass it on
       } else if (prevArg == "-MT") {
         MT.present = true;
-        MT.values.push_back("-MT " + arg);
+        MT.values.push_back("-MT " + escapeShellMetachars(arg));
       } else if (arg == "-MF") {
         prevArg = arg;
         continue; // don't pass it on
       } else if (prevArg == "-MF") {
         MF.present = true;
-        MF.values.push_back("-MF " + arg);
+        MF.values.push_back("-MF " + escapeShellMetachars(arg));
       } else if (arg == "--use_fast_math" || arg == "-ffast-math") {
         fastMath = true;
         continue; // don't pass it on
@@ -246,6 +256,13 @@ public:
 
       prevArg = arg;
     } // end arg loop
+
+    // Escape shell metacharacters in all remaining arguments
+    // This protects against shell injection and syntax errors when arguments
+    // are passed to clang via shell command execution
+    for (auto& arg : remainingArgs) {
+      arg = escapeShellMetachars(arg);
+    }
 
     return remainingArgs;
   }
