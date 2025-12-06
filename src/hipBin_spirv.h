@@ -136,6 +136,7 @@ public:
   Argument MT;
   Argument MF;
   bool perThreadDefaultStream = false;
+  bool buildDeps = false;
 
   /**
    * @brief Pre-process given command line args to make parsing easier
@@ -244,6 +245,10 @@ public:
       } else if (prevArg == "-MF") {
         MF.present = true;
         MF.values.push_back("-MF " + escapeShellMetachars(arg));
+      } else if (arg == "-M" || arg == "-MM") {
+        buildDeps = true;
+        compileOnly = true;
+        remainingArgs.push_back(arg);
       } else if (arg == "--use_fast_math" || arg == "-ffast-math") {
         fastMath = true;
         continue; // don't pass it on
@@ -383,6 +388,7 @@ public:
   virtual const string &getHipCXXFlags() const;
   virtual const string &getHipCFlags() const;
   virtual const string &getHipLdFlags() const;
+  virtual const string &getRoccmPath() const;
   virtual void executeHipCCCmd(vector<string> argv);
 
   bool readHipInfo(const string hip_path_share, HipInfo &result) {
@@ -488,6 +494,11 @@ void HipBinSpirv::constructCompilerPath() {
 
 // returns clang path.
 const string &HipBinSpirv::getCompilerPath() const { return hipClangPath_; }
+
+// For spirv platform, return HIP_PATH instead of ROCM_PATH
+const string &HipBinSpirv::getRoccmPath() const {
+  return getHipPath();
+}
 
 void HipBinSpirv::printCompilerInfo() const {
   const string &hipClangPath = getCompilerPath();
@@ -866,6 +877,10 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
 
   if (opts.MF.present) {
     CMD += " " + opts.MF.values[0];
+  }
+
+  if (opts.buildDeps) {
+    CMD += " --cuda-host-only";
   }
 
   if (opts.perThreadDefaultStream) {
