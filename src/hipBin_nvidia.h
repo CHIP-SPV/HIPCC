@@ -64,9 +64,9 @@ class HipBinNvidia : public HipBinBase {
 HipBinNvidia::HipBinNvidia() {
   PlatformInfo  platformInfo;
   platformInfo.os = getOSInfo();
-  platformInfo.platform = nvidia;
-  platformInfo.runtime = cuda;
-  platformInfo.compiler = nvcc;
+  platformInfo.platform = PlatformType::nvidia;
+  platformInfo.runtime = RuntimeType::cuda;
+  platformInfo.compiler = CompilerType::nvcc;
   platformInfoNV_ = platformInfo;
   constructCompilerPath();
 }
@@ -536,7 +536,7 @@ void HipBinNvidia::executeHipCCCmd(vector<string> argv) {
     inputs.push_back(arg);
     }
     // Windows needs different quoting, ignore for now
-    if (os != windows && escapeArg) {
+    if (os != OsType::windows && escapeArg) {
       regex reg("[^-a-zA-Z0-9_=+,.\\/]");
       arg = regex_replace(arg, reg, "\\$&");
     }

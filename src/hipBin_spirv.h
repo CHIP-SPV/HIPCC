@@ -409,9 +409,9 @@ HipBinSpirv::HipBinSpirv() {
   PlatformInfo platformInfo;
   platformInfo.os = getOSInfo();
 
-  platformInfo.platform = PlatformType::intel;
+  platformInfo.platform = PlatformType::spirv;
   platformInfo.runtime = RuntimeType::spirv;
-  platformInfo.compiler = clang;
+  platformInfo.compiler = CompilerType::clang;
   platformInfo_ = platformInfo;
 
   return;
@@ -543,7 +543,7 @@ string HipBinSpirv::getCppConfig() { return hipInfo_.cxxflags; }
 string HipBinSpirv::getDeviceLibPath() const { return ""; }
 
 bool HipBinSpirv::detectPlatform() {
-  if (getOSInfo() == windows) {
+  if (getOSInfo() == OsType::windows) {
     return false;
   }
 
@@ -577,7 +577,7 @@ bool HipBinSpirv::detectPlatform() {
       // check that HIP_RUNTIME found in .hipVars does not conflict with
       // HIP_RUNTIME in the env
       if (detected && !var.hipPlatformEnv_.empty()) {
-        if (var.hipPlatformEnv_ != "spirv" && var.hipPlatformEnv_ != "intel") {
+        if (var.hipPlatformEnv_ != "spirv") {
           cout << "Error: .hipVars was found in " << var.hipPathEnv_
                << " where HIP_PLATFORM=spirv which conflicts with HIP_PLATFORM "
                   "set in the current environment where HIP_PLATFORM="
@@ -590,10 +590,9 @@ bool HipBinSpirv::detectPlatform() {
     }
   }
 
-  if (!detected && (var.hipPlatformEnv_ == "spirv" ||
-                    var.hipPlatformEnv_ == "intel")) { // 3.
+  if (!detected && var.hipPlatformEnv_ == "spirv") { // 3.
     if (var.hipPathEnv_.empty()) {
-      cout << "Error: setting HIP_PLATFORM=spirv/intel requires setting "
+      cout << "Error: setting HIP_PLATFORM=spirv requires setting "
               "HIP_PATH=/path/to/CHIP-SPV-INSTALL-DIR/"
            << endl;
       std::exit(EXIT_FAILURE);

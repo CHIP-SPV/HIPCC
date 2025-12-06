@@ -56,28 +56,28 @@ THE SOFTWARE.
 # define HIP_BASE_VERSION_GITHASH   "0"
 
 
-enum PlatformType {
+enum class PlatformType {
   amd = 0,
   nvidia,
-  intel
+  spirv
   // add new platform types to be added here
 };
 
 string PlatformTypeStr(PlatformType platform) {
   switch (platform) {
-  case amd:
+  case PlatformType::amd:
     return "amd";
-  case nvidia:
+  case PlatformType::nvidia:
     return "nvidia";
-  case intel:
-    return "intel";
+  case PlatformType::spirv:
+    return "spirv";
   // add new platform types to be added here
   default:
     return "invalid platform";
   }
 }
 
-enum CompilerType {
+enum class CompilerType {
   clang = 0,
   nvcc
   // add new compiler types to be added here
@@ -86,9 +86,9 @@ enum CompilerType {
 
 string CompilerTypeStr(CompilerType compiler) {
   switch (compiler) {
-  case clang:
+  case CompilerType::clang:
     return "clang";
-  case nvcc:
+  case CompilerType::nvcc:
     return "nvcc";
   // add new compiler types to be added here
   default:
@@ -97,7 +97,7 @@ string CompilerTypeStr(CompilerType compiler) {
 }
 
 
-enum RuntimeType {
+enum class RuntimeType {
   rocclr = 0,
   cuda,
   spirv
@@ -106,11 +106,11 @@ enum RuntimeType {
 
 string RuntimeTypeStr(RuntimeType runtime) {
   switch (runtime) {
-  case rocclr:
+  case RuntimeType::rocclr:
     return "rocclr";
-  case cuda:
+  case RuntimeType::cuda:
     return "cuda";
-  case spirv:
+  case RuntimeType::spirv:
     return "spirv";
   // add new runtime types to be added here
   default:
@@ -118,7 +118,7 @@ string RuntimeTypeStr(RuntimeType runtime) {
   }
 }
 
-enum OsType {
+enum class OsType {
   lnx = 0,
   windows
   // add new OS types to be added here
@@ -126,9 +126,9 @@ enum OsType {
 
 string OsTypeStr(OsType os) {
   switch (os) {
-  case lnx:
+  case OsType::lnx:
     return "linux";
-  case windows:
+  case OsType::windows:
     return "windows";
   // add new OS types to be added here
   default:
@@ -275,9 +275,9 @@ HipBinBase::HipBinBase() {
 // detects the OS information
 void HipBinBase::readOSInfo() {
 #if defined _WIN32 || defined  _WIN64
-  osInfo_ = windows;
+  osInfo_ = OsType::windows;
 #elif  defined __unix || defined __linux__
-  osInfo_ = lnx;
+  osInfo_ = OsType::lnx;
 #endif
 }
 
@@ -382,14 +382,14 @@ void HipBinBase::readHipVersion() {
 // prints system information
 void HipBinBase::getSystemInfo() const {
   const OsType& os = getOSInfo();
-  if (os == windows) {
+  if (os == OsType::windows) {
     cout << endl << "== Windows Display Drivers" << endl;
     cout << "Hostname      :";
     system("hostname");
     system("wmic path win32_VideoController get AdapterCompatibility,"
     "InstalledDisplayDrivers,Name | findstr /B /C:\"Advanced Micro Devices\"");
   } else {
-    assert(os == lnx);
+    assert(os == OsType::lnx);
     cout << endl << "== Linux Kernel" << endl;
     cout << "Hostname      : " << std::flush;
     system("hostname");
@@ -400,7 +400,7 @@ void HipBinBase::getSystemInfo() const {
 // prints the envirnoment variables
 void HipBinBase::printEnvironmentVariables() const {
   const OsType& os = getOSInfo();
-  if (os == windows) {
+  if (os == OsType::windows) {
     cout << "PATH=" << envVariables_.path_ << "\n" << endl;
     system("set | findstr"
     " /B /C:\"HIP\" /C:\"HSA\" /C:\"CUDA\" /C:\"LD_LIBRARY_PATH\"");

@@ -81,9 +81,9 @@ class HipBinAmd : public HipBinBase {
 HipBinAmd::HipBinAmd() {
   PlatformInfo platformInfo;
   platformInfo.os = getOSInfo();
-  platformInfo.platform = amd;
-  platformInfo.runtime = rocclr;
-  platformInfo.compiler = clang;
+  platformInfo.platform = PlatformType::amd;
+  platformInfo.runtime = RuntimeType::rocclr;
+  platformInfo.compiler = CompilerType::clang;
   platformInfoAMD_ = platformInfo;
   constructRocclrHomePath();    // constructs RocclrHomePath
   constructHsaPath();           // constructs hsa path
@@ -158,7 +158,7 @@ void HipBinAmd::initializeHipLdFlags() {
   hipLibPath = getHipLibPath();
   hipLdFlags += " -L\"" + hipLibPath + "\"";
   const OsType& os = getOSInfo();
-  if (os == windows) {
+  if (os == OsType::windows) {
     hipLdFlags += " -lamdhip64";
   }
   hipLdFlags_ = hipLdFlags;
@@ -170,7 +170,7 @@ void HipBinAmd::initializeHipCFlags() {
   hipclangIncludePath = getHipInclude();
   hipCFlags += " -isystem \"" + hipclangIncludePath + "\"";
   const OsType& os = getOSInfo();
-  if (os != windows) {
+  if (os != OsType::windows) {
     string hsaPath;
     hsaPath = getHsaPath();
     hipCFlags += " -isystem " + hsaPath + "/include";
@@ -216,7 +216,7 @@ void HipBinAmd::initializeHipCXXFlags() {
     " -Xclang -fallow-half-arguments-and-returns -D__HIP_HCC_COMPAT_MODE__=1";
   }
 
-  if (os != windows) {
+  if (os != OsType::windows) {
     const string& hsaPath = getHsaPath();
     hipCXXFlags += " -isystem " + hsaPath + "/include";
   }
@@ -234,7 +234,7 @@ void HipBinAmd::constructCompilerPath() {
   if (envVariables.hipClangPathEnv_.empty()) {
     fs::path hipClangPath;
     const OsType& osInfo = getOSInfo();
-    if (osInfo == windows) {
+    if (osInfo == OsType::windows) {
       complierPath = getHipPath();
       hipClangPath = complierPath;
       hipClangPath /= "bin";
@@ -262,7 +262,7 @@ void HipBinAmd::printCompilerInfo() const {
   const OsType& os = getOSInfo();
   const string& hipClangPath = getCompilerPath();
   const string& hipPath = getHipPath();
-  if (os == windows) {
+  if (os == OsType::windows) {
     string cmd = hipClangPath + "/clang++ --version";
     system(cmd.c_str());  // hipclang version
     cout << "llc-version :" << endl;
@@ -338,7 +338,7 @@ string HipBinAmd::getCppConfig() {
   string hipClangPath = hipClangInclude.string();
 
   const OsType& osInfo = getOSInfo();
-  if (osInfo == windows) {
+  if (osInfo == OsType::windows) {
     cppConfig += " -I" + hipPathInclude.string() + " -I" + hipClangPath;
     cppConfigFs = cppConfig;
     cppConfigFs /= "/";
@@ -982,7 +982,7 @@ void HipBinAmd::executeHipCCCmd(vector<string> argv) {
     // Do the quoting here because sometimes the $arg is changed in the loop
     // Important to have all of '-Xlinker' in the set of unquoted characters.
     // Windows needs different quoting, ignore for now
-    if (os != windows && escapeArg) {
+    if (os != OsType::windows && escapeArg) {
       regex reg("[^-a-zA-Z0-9_=+,.\\/]");
       arg = regex_replace(arg, reg, "\\$&");
     }
@@ -994,7 +994,7 @@ void HipBinAmd::executeHipCCCmd(vector<string> argv) {
   if (default_amdgpu_target == 1) {
     if (!var.hccAmdGpuTargetEnv_.empty()) {
       targetsStr = var.hccAmdGpuTargetEnv_;
-    } else if (os != windows) {
+    } else if (os != OsType::windows) {
       // Else try using rocm_agent_enumerator
       string ROCM_AGENT_ENUM;
       ROCM_AGENT_ENUM = roccmPath + "/bin/rocm_agent_enumerator";
@@ -1093,11 +1093,11 @@ void HipBinAmd::executeHipCCCmd(vector<string> argv) {
       HIPCXXFLAGS += hip_device_lib_str;
     }
   }
-  if (os != windows) {
+  if (os != OsType::windows) {
     HIPLDFLAGS += " -lgcc_s -lgcc -lpthread -lm -lrt";
   }
 
-  if (os != windows && !compileOnly) {
+  if (os != OsType::windows && !compileOnly) {
     string hipClangVersion, toolArgTemp;
     if (linkType == 0) {
       toolArgTemp = " -L"+ hipLibPath + "-lamdhip64 -L" +
