@@ -162,8 +162,17 @@ void HipBin::executeHipConfig(int argc, char* argv[]) {
       case path: cout << platformPtrs.at(j)->getHipPath();
         break;
       // ROCm is not related to either Nvidia or SPIR-V so it should be moved to hipBin_amd.h?
-      case roccmpath: cout << platformPtrs.at(j)->getRoccmPath();
+      case roccmpath: {
+        string rocmPath = platformPtrs.at(j)->getRoccmPath();
+        size_t lastNonWhitespace = rocmPath.find_last_not_of(" \t\n\r\f\v");
+        if (lastNonWhitespace != string::npos) {
+          rocmPath.erase(lastNonWhitespace + 1);
+        } else {
+          rocmPath.clear();
+        }
+        cout << rocmPath;
         break;
+      }
       case cpp_config: cout << platformPtrs.at(j)->getCppConfig();
         break;
       case compiler: cout << CompilerTypeStr((

@@ -241,7 +241,7 @@ class HipBinBase {
   const EnvVariables& getEnvVariables() const;
   const OsType& getOSInfo() const;
   const string& getHipPath() const;
-  const string& getRoccmPath() const;
+  virtual const string& getRoccmPath() const;
   const string& getHipVersion() const;
   void printUsage() const;
   bool canRunCompiler(string exeName, string& cmdOut);
