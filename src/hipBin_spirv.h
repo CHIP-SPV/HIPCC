@@ -438,6 +438,24 @@ void HipBinSpirv::initializeHipCFlags() {
   hipCFlags_ = "-D__HIP_PLATFORM_SPIRV__";
   string hipIncludePath = getHipInclude();
   hipCFlags_ += " -isystem " + hipIncludePath;
+
+#ifdef __APPLE__
+  // On macOS, add sysroot to find system headers
+  // Try to get SDK path from xcrun
+  FILE *pipe = popen("xcrun --show-sdk-path 2>/dev/null", "r");
+  if (pipe) {
+    char buffer[256];
+    if (fgets(buffer, sizeof(buffer), pipe)) {
+      // Remove trailing newline
+      size_t len = strlen(buffer);
+      if (len > 0 && buffer[len - 1] == '\n')
+        buffer[len - 1] = '\0';
+      hipCFlags_ += " --sysroot=";
+      hipCFlags_ += buffer;
+    }
+    pclose(pipe);
+  }
+#endif
 }
 
 const string &HipBinSpirv::getHipCXXFlags() const { return hipCXXFlags_; }
@@ -762,7 +780,6 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   // parse sources handling -x<lang> cases
   processedArgs = opts.processSources(processedArgs);
 
-  const OsType &os = getOSInfo();
   string hip_compile_cxx_as_hip;
   if (var.hipCompileCxxAsHipEnv_.empty()) {
     hip_compile_cxx_as_hip = "1";
@@ -775,10 +792,40 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   initializeHipCXXFlags();
   initializeHipCFlags();
   initializeHipLdFlags();
-  string HIPCXXFLAGS, HIPCFLAGS, HIPLDFLAGS;
+  string HIPCXXFLAGS, HIPCFLAGS, HIPLDFLAGS, HIPLDFLAGS_NO_HIP_RT;
   HIPCFLAGS = getHipCFlags();
   HIPCXXFLAGS = getHipCXXFlags();
   HIPLDFLAGS = getHipLdFlags();
+  // Separate -no-hip-rt from other linker flags since it's linker-only
+  // and causes errors with -Werror=unused-command-line-argument during compilation
+  HIPLDFLAGS_NO_HIP_RT = HIPLDFLAGS;
+  // Remove -no-hip-rt from linker flags (we'll add it separately when linking)
+  // Use regex-like replacement: replace " -no-hip-rt " with " ", " -no-hip-rt" with "", "-no-hip-rt " with ""
+  string noHipRtFlag = "-no-hip-rt";
+  size_t pos = HIPLDFLAGS_NO_HIP_RT.find(noHipRtFlag);
+  while (pos != string::npos) {
+    bool spaceBefore = (pos > 0 && HIPLDFLAGS_NO_HIP_RT[pos-1] == ' ');
+    size_t afterPos = pos + noHipRtFlag.length();
+    bool spaceAfter = (afterPos < HIPLDFLAGS_NO_HIP_RT.length() && HIPLDFLAGS_NO_HIP_RT[afterPos] == ' ');
+    
+    // Remove the flag and one surrounding space, keeping one space between tokens
+    if (spaceBefore && spaceAfter) {
+      // " -no-hip-rt " -> " " (erase flag + trailing space, keep leading space)
+      HIPLDFLAGS_NO_HIP_RT.erase(pos, noHipRtFlag.length() + 1);
+      // pos stays the same since leading space remains
+    } else if (spaceBefore) {
+      // " -no-hip-rt" at end -> ""
+      HIPLDFLAGS_NO_HIP_RT.erase(pos - 1, noHipRtFlag.length() + 1);
+      pos = pos - 1;
+    } else if (spaceAfter) {
+      // "-no-hip-rt " at start -> ""
+      HIPLDFLAGS_NO_HIP_RT.erase(pos, noHipRtFlag.length() + 1);
+    } else {
+      // "-no-hip-rt" alone -> ""
+      HIPLDFLAGS_NO_HIP_RT.erase(pos, noHipRtFlag.length());
+    }
+    pos = HIPLDFLAGS_NO_HIP_RT.find(noHipRtFlag, pos);
+  }
   if (!var.hipccCompileFlagsAppendEnv_.empty()) {
     HIPCXXFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
     HIPCFLAGS += " " + var.hipccCompileFlagsAppendEnv_ + " ";
@@ -868,7 +915,14 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   }
 
   if (!opts.compileOnly) {
-    CMD += " " + HIPLDFLAGS;
+    // Add linker flags without -no-hip-rt first
+    CMD += " " + HIPLDFLAGS_NO_HIP_RT;
+    // Add -no-hip-rt only when linking object files (linkOnly=true)
+    // For combined compile+link, skip -no-hip-rt to avoid -Werror=unused-command-line-argument
+    // The flag is only needed when linking, not during compilation
+    if (opts.linkOnly && HIPLDFLAGS.find("-no-hip-rt") != string::npos) {
+      CMD += " -no-hip-rt";
+    }
   }
 
   if (opts.MT.present) {

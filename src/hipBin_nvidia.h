@@ -323,6 +323,7 @@ void HipBinNvidia::executeHipCCCmd(vector<string> argv) {
   string hsacoVersion;
   bool funcSupp = 0;      // enable function support
   bool rdc = 0;           // whether -fgpu-rdc is on
+  (void)rdc;              // suppress unused variable warning (set but not read)
   string prevArg;
   // TODO(hipcc): convert toolArgs to an array rather than a string
   string toolArgs;
