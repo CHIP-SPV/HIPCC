@@ -917,10 +917,9 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   if (!opts.compileOnly) {
     // Add linker flags without -no-hip-rt first
     CMD += " " + HIPLDFLAGS_NO_HIP_RT;
-    // Add -no-hip-rt only when linking object files (linkOnly=true)
-    // For combined compile+link, skip -no-hip-rt to avoid -Werror=unused-command-line-argument
-    // The flag is only needed when linking, not during compilation
-    if (opts.linkOnly && HIPLDFLAGS.find("-no-hip-rt") != string::npos) {
+    // Add -no-hip-rt when linking to prevent clang from automatically linking amdhip64
+    // This is needed for both link-only and combined compile+link scenarios
+    if (HIPLDFLAGS.find("-no-hip-rt") != string::npos) {
       CMD += " -no-hip-rt";
     }
   }
