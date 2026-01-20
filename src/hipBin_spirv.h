@@ -910,6 +910,29 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
     // Add -no-hip-rt when linking to prevent clang from automatically linking amdhip64
     // This is needed for both link-only and combined compile+link scenarios
     if (HIPLDFLAGS.find("-no-hip-rt") != string::npos) {
+      // Check if user has -Werror=unused-command-line-argument
+      // In LLVM 21+, clang is stricter and flags -no-hip-rt as unused during
+      // compilation phase of combined compile+link. We need to suppress this warning.
+      bool hasWerrorUnused = false;
+      for (const auto &arg : processedArgs) {
+        if (arg.find("-Werror=unused-command-line-argument") != string::npos) {
+          hasWerrorUnused = true;
+          break;
+        }
+      }
+      // Also check compile flags in case it was set via environment or CMake
+      if (!hasWerrorUnused) {
+        if (HIPCXXFLAGS.find("-Werror=unused-command-line-argument") != string::npos ||
+            HIPCFLAGS.find("-Werror=unused-command-line-argument") != string::npos) {
+          hasWerrorUnused = true;
+        }
+      }
+      // If doing combined compile+link (has source files) and user has -Werror=unused-command-line-argument,
+      // add -Wno-unused-command-line-argument before -no-hip-rt to suppress the warning
+      bool isCombinedCompileLink = (opts.sourcesHip_present || opts.sourcesCpp_present || opts.sourcesC_present);
+      if (hasWerrorUnused && isCombinedCompileLink) {
+        CMD += " -Wno-unused-command-line-argument";
+      }
       CMD += " -no-hip-rt";
     }
   }
