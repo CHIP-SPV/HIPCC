@@ -902,19 +902,17 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   // always add HIP include path for hip_runtime_api.h
   CMD += " -I/" + hipIncludePath;
 
-  // append all user provided arguments that weren't handled
-  for (auto arg : processedArgs)
-    CMD += " " + arg;
-
-  CMD += " ";
-  
   if (opts.sourcesHip_present || opts.sourcesCpp_present) {
-    CMD += HIPCXXFLAGS;
+    CMD += " " + HIPCXXFLAGS;
   }
 
   if (opts.sourcesC_present) {
-    CMD += HIPCFLAGS;
+    CMD += " " + HIPCFLAGS;
   }
+
+  // append all user provided arguments that weren't handled
+  for (auto arg : processedArgs)
+    CMD += " " + arg;
 
   if (opts.outputObject.present) {
     CMD += " " + opts.outputObject.values[0];
