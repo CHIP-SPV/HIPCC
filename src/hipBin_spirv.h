@@ -212,6 +212,12 @@ public:
       } else if (arg == "--genco") {
         compileOnly = true;
         remainingArgs.push_back("-c");
+      } else if (arg == "-dc") {
+        // -dc is equivalent to -fgpu-rdc -c (separate device compilation)
+        compileOnly = true;
+        rdc_present = true;
+        remainingArgs.push_back("-fgpu-rdc");
+        remainingArgs.push_back("-c");
       } else if (arg == "--offload=spirv64") {
         offload = true;
       } else if (arg == "-fgpu-rdc") {
