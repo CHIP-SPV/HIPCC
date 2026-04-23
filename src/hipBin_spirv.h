@@ -29,6 +29,8 @@ THE SOFTWARE.
 #include <string>
 #include <unordered_set>
 #include <cassert>
+#include <cstdlib>
+#include <sys/wait.h>
 
 // Use (void) to silent unused warnengs.
 #define assertm(exp, msg) assert(((void)msg, exp))
@@ -125,6 +127,7 @@ public:
   bool sourcesHip_present = false;
   bool compileOnly = false;
   Argument outputObject;
+  std::string outputObjectPath; // raw (unescaped) path passed to -o, for HIPCC_VERIFY
   bool printHipVersion = false;
   bool printCXXFlags = false;
   bool printLDFlags = false;
@@ -239,6 +242,7 @@ public:
       } else if (prevArg == "-o") {
         outputObject.present = true;
         outputObject.values.push_back("-o " + escapeShellMetachars(arg));
+        outputObjectPath = arg;
       } else if (arg == "-MT") {
         prevArg = arg;
         continue; // don't pass it on
@@ -982,7 +986,39 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
     int CMD_EXIT_CODE = sysOut.exitCode;
     if (CMD_EXIT_CODE != 0) {
       cout << "failed to execute:" << CMD << std::endl;
+      exit(CMD_EXIT_CODE);
     }
+
+    // HIPCC_VERIFY: post-compile ocloc-based kernel coverage check.
+    // Built-in default (HIPCC_VERIFY_DEFAULT) set by top-level CMake; runtime
+    // env var HIPCC_VERIFY overrides: "0"/"off" disables, "warn" prints only,
+    // anything else (or unset when default ON) runs in fail-on-mismatch mode.
+#ifndef HIPCC_VERIFY_DEFAULT
+#define HIPCC_VERIFY_DEFAULT 1
+#endif
+    if (!opts.buildDeps && !opts.printHipVersion && !opts.printCXXFlags &&
+        !opts.printLDFlags) {
+      const char *verifyEnv = std::getenv("HIPCC_VERIFY");
+      bool run = HIPCC_VERIFY_DEFAULT;
+      if (verifyEnv) {
+        std::string v(verifyEnv);
+        run = !(v == "0" || v == "off" || v == "OFF");
+      }
+      if (run) {
+        std::string target = opts.outputObjectPath;
+        if (target.empty())
+          target = opts.compileOnly ? "" : "a.out"; // clang default when linking
+        if (!target.empty()) {
+          std::string verifier = getHipPath() + "/bin/chip-kernel-verify";
+          std::string vcmd = verifier + " " + opts.escapeShellMetachars(target);
+          int vrc = std::system(vcmd.c_str());
+          if (vrc != 0 && !(verifyEnv && std::string(verifyEnv) == "warn")) {
+            exit(WIFEXITED(vrc) ? WEXITSTATUS(vrc) : 1);
+          }
+        }
+      }
+    }
+
     exit(CMD_EXIT_CODE);
   } // end of runCmd section
 } // end of function
