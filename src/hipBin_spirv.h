@@ -31,6 +31,7 @@ THE SOFTWARE.
 #include <cassert>
 #include <cstdlib>
 #include <sys/wait.h>
+#include <unistd.h>
 
 // Use (void) to silent unused warnengs.
 #define assertm(exp, msg) assert(((void)msg, exp))
@@ -1010,10 +1011,14 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
           target = opts.compileOnly ? "" : "a.out"; // clang default when linking
         if (!target.empty()) {
           std::string verifier = getHipPath() + "/bin/chip-kernel-verify";
-          std::string vcmd = verifier + " " + opts.escapeShellMetachars(target);
-          int vrc = std::system(vcmd.c_str());
-          if (vrc != 0 && !(verifyEnv && std::string(verifyEnv) == "warn")) {
-            exit(WIFEXITED(vrc) ? WEXITSTATUS(vrc) : 1);
+          // Silently skip if the verifier isn't installed (e.g. during
+          // chipStar's own bootstrap build, before the install tree exists).
+          if (access(verifier.c_str(), X_OK) == 0) {
+            std::string vcmd = verifier + " " + opts.escapeShellMetachars(target);
+            int vrc = std::system(vcmd.c_str());
+            if (vrc != 0 && !(verifyEnv && std::string(verifyEnv) == "warn")) {
+              exit(WIFEXITED(vrc) ? WEXITSTATUS(vrc) : 1);
+            }
           }
         }
       }
