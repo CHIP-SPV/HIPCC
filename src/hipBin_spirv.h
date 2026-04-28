@@ -997,8 +997,12 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
 #ifndef HIPCC_VERIFY_DEFAULT
 #define HIPCC_VERIFY_DEFAULT 1
 #endif
-    if (!opts.buildDeps && !opts.printHipVersion && !opts.printCXXFlags &&
-        !opts.printLDFlags) {
+    // Only verify final link outputs. Intermediate object files (compileOnly:
+    // -c/-dc/-E/-S) carry partial / pre-link offload bundles that the SPIR-V
+    // extractor isn't designed to parse — running the verifier on them risks
+    // spurious failures or crashes. SPIR-V is finalised at link time anyway.
+    if (!opts.buildDeps && !opts.compileOnly && !opts.printHipVersion &&
+        !opts.printCXXFlags && !opts.printLDFlags) {
       const char *verifyEnv = std::getenv("HIPCC_VERIFY");
       bool run = HIPCC_VERIFY_DEFAULT;
       if (verifyEnv) {
