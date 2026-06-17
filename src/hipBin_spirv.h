@@ -225,6 +225,15 @@ public:
         remainingArgs.push_back("-c");
       } else if (arg == "--offload=spirv64") {
         offload = true;
+      } else if (arg == "-fopenmp" || arg.rfind("-fopenmp=", 0) == 0) {
+        // chipStar only supports host (CPU) OpenMP alongside HIP device
+        // offload. Scope -fopenmp to the host toolchain; otherwise clang's
+        // offloading driver treats it as an OpenMP-offload language targeting
+        // the HIP offload triple set by --offload=spirv64, producing:
+        //   "mixed HIP and OPENMP offloading compilation is not supported".
+        // -Xarch_host works for both compile and link.
+        remainingArgs.push_back("-Xarch_host");
+        remainingArgs.push_back(arg);
       } else if (arg == "-fgpu-rdc") {
         rdc_present = true;
         remainingArgs.push_back(arg);
