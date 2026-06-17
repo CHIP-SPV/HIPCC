@@ -227,9 +227,9 @@ public:
         offload = true;
       } else if (arg == "-fopenmp" || arg.rfind("-fopenmp=", 0) == 0) {
         // chipStar only supports host (CPU) OpenMP alongside HIP device
-        // offload. Scope -fopenmp to the host toolchain; otherwise clang's
-        // offloading driver treats it as an OpenMP-offload language targeting
-        // the HIP offload triple set by --offload=spirv64, producing:
+        // offload. If -fopenmp is passed in, put it behind -Xarch_host. 
+	    // otherwise at the moment (LLVM22) clang's
+        // offloading driver treats it as an OpenMP-offload, producing:
         //   "mixed HIP and OPENMP offloading compilation is not supported".
         // -Xarch_host works for both compile and link.
         remainingArgs.push_back("-Xarch_host");
