@@ -214,6 +214,16 @@ public:
       if (arg == "-c") {
         compileOnly = true;
         remainingArgs.push_back(arg);
+      } else if (arg == "-E" || arg == "-S" || arg == "-fsyntax-only") {
+        // These stop before linking just like -c does. Without setting
+        // compileOnly the driver appends HIPLDFLAGS (producing bogus "linker
+        // input unused" warnings) and, worse, runs the post-link
+        // chip-kernel-verify pass on output that is not a final image: -E
+        // emits a *textual* offload bundle whose "// __CLANG_OFFLOAD_BUNDLE__"
+        // delimiters are mistaken for the binary bundle magic, crashing the
+        // extractor.
+        compileOnly = true;
+        remainingArgs.push_back(arg);
       } else if (arg == "--genco") {
         compileOnly = true;
         remainingArgs.push_back("-c");
