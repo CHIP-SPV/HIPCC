@@ -198,7 +198,7 @@ string HipBinUtil::mktempFile(string name) {
 
 // Helper function to get executable path that works on both Linux and macOS
 inline std::string getExecutablePath() {
-  int MAX_PATH_CHAR = 1024;
+  constexpr int MAX_PATH_CHAR = 1024;
   std::string path;
   #if defined(_WIN32) || defined(_WIN64)
     TCHAR buffer[MAX_PATH] = { 0 };
