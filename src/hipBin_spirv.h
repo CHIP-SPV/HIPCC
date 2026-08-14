@@ -57,6 +57,8 @@ THE SOFTWARE.
 #define HIP_OFFLOAD_LINK_OPTIONS "HIP_OFFLOAD_LINK_OPTIONS"
 #define HIP_OFFLOAD_RDC_SUPPLEMENT_LINK_OPTIONS                                \
   "HIP_OFFLOAD_RDC_SUPPLEMENT_LINK_OPTIONS"
+#define HIP_OFFLOAD_NONRDC_COMPILE_SUPPLEMENT_OPTIONS                          \
+  "HIP_OFFLOAD_NONRDC_COMPILE_SUPPLEMENT_OPTIONS"
 
 /**
  * @brief Container class for parsing and storing .hipInfo
@@ -68,6 +70,7 @@ public:
   string cxxflags = "";
   string ldflags = "";
   string rdcSupplementLinkFlags = "";
+  string nonRdcCompileSupplementFlags = "";
   string clangpath = "";
   string hipPath = "";
 
@@ -86,6 +89,11 @@ public:
       rdcSupplementLinkFlags =
           line.substr(string(HIP_OFFLOAD_RDC_SUPPLEMENT_LINK_OPTIONS).size() +
                       1); // add + 1 to account for =
+    } else if (line.find(HIP_OFFLOAD_NONRDC_COMPILE_SUPPLEMENT_OPTIONS) !=
+               string::npos) {
+      nonRdcCompileSupplementFlags = line.substr(
+          string(HIP_OFFLOAD_NONRDC_COMPILE_SUPPLEMENT_OPTIONS).size() +
+          1); // add + 1 to account for =
     } else if (line.find(HIP_CLANG_PATH) != string::npos) {
       // TODO check if llvm-config exists here
       clangpath = line.substr(string(HIP_CLANG_PATH).size() +
@@ -597,7 +605,13 @@ const PlatformInfo &HipBinSpirv::getPlatformInfo() const {
   return platformInfo_;
 }
 
-string HipBinSpirv::getCppConfig() { return hipInfo_.cxxflags; }
+string HipBinSpirv::getCppConfig() {
+  // Reported flags describe a compile-time device codegen, which is where the
+  // emitter selection belongs; RDC users get it from the RDC link supplement.
+  if (hipInfo_.nonRdcCompileSupplementFlags.empty())
+    return hipInfo_.cxxflags;
+  return hipInfo_.cxxflags + " " + hipInfo_.nonRdcCompileSupplementFlags;
+}
 
 string HipBinSpirv::getDeviceLibPath() const { return ""; }
 
@@ -914,6 +928,8 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   }
   if (opts.printCXXFlags) {
     cout << HIPCXXFLAGS;
+    if (!hipInfo_.nonRdcCompileSupplementFlags.empty())
+      cout << " " << hipInfo_.nonRdcCompileSupplementFlags;
   }
   if (opts.printLDFlags) {
     cout << HIPLDFLAGS;
@@ -928,6 +944,14 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
 
   if (opts.sourcesHip_present || opts.sourcesCpp_present) {
     CMD += " " + HIPCXXFLAGS;
+    // The SPIR-V emitter selection is only claimed by a device codegen job.
+    // With -fgpu-rdc -c there is none (device code is emitted by
+    // clang-linker-wrapper at link time, which gets the selection from
+    // rdcSupplementLinkFlags instead), so passing it here would leave it
+    // unclaimed and trip -Werror=unused-command-line-argument.
+    if (!hipInfo_.nonRdcCompileSupplementFlags.empty() &&
+        !(opts.rdc_present && opts.compileOnly))
+      CMD += " " + hipInfo_.nonRdcCompileSupplementFlags;
   }
 
   if (opts.sourcesC_present) {
