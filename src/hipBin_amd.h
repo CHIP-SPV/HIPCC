@@ -43,6 +43,7 @@ class HipBinAmd : public HipBinBase {
  private:
   HipBinUtil* hipBinUtilPtr_;
   string hipClangPath_ = "";
+  string hipCompilerBin_ = "";
   string roccmPathEnv_, hipRocclrPathEnv_, hsaPathEnv_;
   PlatformInfo platformInfoAMD_;
   string hipCFlags_, hipCXXFlags_, hipLdFlags_;
@@ -55,6 +56,7 @@ class HipBinAmd : public HipBinBase {
   virtual bool detectPlatform();
   virtual void constructCompilerPath();
   virtual const string& getCompilerPath() const;
+  virtual const string& getCompilerBinPath() const;
   virtual const PlatformInfo& getPlatformInfo() const;
   virtual string getCppConfig();
   virtual void printFull();
@@ -150,8 +152,9 @@ void HipBinAmd::initializeHipLdFlags() {
   string hipLibPath;
   string hipLdFlags;
   const string& hipClangPath = getCompilerPath();
+  const string& hipCompilerBin = getCompilerBinPath();
   // If $HIPCC clang++ is not compiled, use clang instead
-  string hipCC = "\"" + hipClangPath + "/clang++";
+  string hipCC = "\"" + (hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin);
   if (!fs::exists(hipCC)) {
     hipLdFlags = "--driver-mode=g++";
   }
@@ -248,6 +251,7 @@ void HipBinAmd::constructCompilerPath() {
     complierPath = envVariables.hipClangPathEnv_;
   }
   hipClangPath_ = complierPath;
+  hipCompilerBin_ = envVariables.hipCompilerBinEnv_;
 }
 
 
@@ -258,12 +262,18 @@ const string& HipBinAmd::getCompilerPath() const {
   return hipClangPath_;
 }
 
+// returns clang binary path.
+const string& HipBinAmd::getCompilerBinPath() const {
+  return hipCompilerBin_;
+}
+
 void HipBinAmd::printCompilerInfo() const {
   const OsType& os = getOSInfo();
   const string& hipClangPath = getCompilerPath();
+  const string& hipCompilerBin = getCompilerBinPath();
   const string& hipPath = getHipPath();
   if (os == OsType::windows) {
-    string cmd = hipClangPath + "/clang++ --version";
+    string cmd = (hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin) + " --version";
     system(cmd.c_str());  // hipclang version
     cout << "llc-version :" << endl;
     cmd = hipClangPath + "/llc --version";
@@ -276,7 +286,7 @@ void HipBinAmd::printCompilerInfo() const {
     system(cmd.c_str());  // ld flags
     cout << endl;
   } else {
-    string cmd = hipClangPath + "/clang++ --version";
+    string cmd = (hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin) + " --version";
     system(cmd.c_str());  // hipclang version
     cmd = hipClangPath + "/llc --version";
     system(cmd.c_str());  // llc version
@@ -293,8 +303,8 @@ void HipBinAmd::printCompilerInfo() const {
 string HipBinAmd::getCompilerVersion() {
   string out, complierVersion;
   const string& hipClangPath = getCompilerPath();
-  fs::path cmdAmd = hipClangPath;
-  cmdAmd /= "clang++";
+  const string& hipCompilerBin = getCompilerBinPath();
+  fs::path cmdAmd = hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin;
   if (canRunCompiler(cmdAmd.string(), out) || canRunCompiler("clang++", out)) {
     regex regexp("([0-9.]+)");
     smatch m;
@@ -384,8 +394,8 @@ string HipBinAmd::getDeviceLibPath() const {
 bool HipBinAmd::detectPlatform() {
   string out;
   const string& hipClangPath = getCompilerPath();
-  fs::path cmdAmd = hipClangPath;
-  cmdAmd /= "clang++";
+  const string& hipCompilerBin = getCompilerBinPath();
+  fs::path cmdAmd = hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin;
   const EnvVariables& var = getEnvVariables();
   bool detected = false;
   if (var.hipPlatformEnv_.empty()) {

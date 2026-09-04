@@ -393,6 +393,7 @@ class HipBinSpirv : public HipBinBase {
 private:
   HipBinUtil *hipBinUtilPtr_;
   string hipClangPath_ = "";
+  string hipCompilerBin_ = "";
   PlatformInfo platformInfo_;
   string hipCFlags_, hipCXXFlags_, hipLdFlags_, fixupHeader_;
 
@@ -403,6 +404,7 @@ public:
   virtual bool detectPlatform();
   virtual void constructCompilerPath();
   virtual const string &getCompilerPath() const;
+  virtual const string &getCompilerBinPath() const;
   virtual const PlatformInfo &getPlatformInfo() const;
   virtual string getCppConfig();
   virtual void printFull();
@@ -532,18 +534,22 @@ void HipBinSpirv::constructCompilerPath() {
       std::exit(EXIT_FAILURE);
     } else {
       hipClangPath_ = envVariables.hipClangPathEnv_;
-      return;
     }
 
   } else {
     hipClangPath_ = hipInfo_.clangpath;
   }
 
+  hipCompilerBin_ = envVariables.hipCompilerBinEnv_;
+
   return;
 }
 
 // returns clang path.
 const string &HipBinSpirv::getCompilerPath() const { return hipClangPath_; }
+
+// returns clang binary path.
+const string &HipBinSpirv::getCompilerBinPath() const { return hipCompilerBin_; }
 
 // For spirv platform, return HIP_PATH instead of ROCM_PATH
 const string &HipBinSpirv::getRoccmPath() const {
@@ -552,10 +558,11 @@ const string &HipBinSpirv::getRoccmPath() const {
 
 void HipBinSpirv::printCompilerInfo() const {
   const string &hipClangPath = getCompilerPath();
+  const string &hipCompilerBin = getCompilerBinPath();
 
   cout << endl;
 
-  string cmd = hipClangPath + "/clang++ --version";
+  string cmd = (hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin) + " --version";
   system(cmd.c_str()); // hipclang version
   cmd = hipClangPath + "/llc --version";
   system(cmd.c_str()); // llc version
@@ -682,8 +689,8 @@ string HipBinSpirv::getHipLibPath() const { return ""; }
 string HipBinSpirv::getHipCC() const {
   string hipCC;
   const string &hipClangPath = getCompilerPath();
-  fs::path compiler = hipClangPath;
-  compiler /= "clang++";
+  const string &hipCompilerBin = getCompilerBinPath();
+  fs::path compiler = hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin;
   if (!fs::exists(compiler)) {
     fs::path compiler = hipClangPath;
     compiler /= "clang";
