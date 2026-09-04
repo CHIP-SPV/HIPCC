@@ -394,6 +394,7 @@ private:
   HipBinUtil *hipBinUtilPtr_;
   string hipClangPath_ = "";
   string hipCompilerBin_ = "";
+  string hipLLVMConfigBin_ = "";
   PlatformInfo platformInfo_;
   string hipCFlags_, hipCXXFlags_, hipLdFlags_, fixupHeader_;
 
@@ -405,6 +406,7 @@ public:
   virtual void constructCompilerPath();
   virtual const string &getCompilerPath() const;
   virtual const string &getCompilerBinPath() const;
+  virtual const string &getLLVMConfigBinPath() const;
   virtual const PlatformInfo &getPlatformInfo() const;
   virtual string getCppConfig();
   virtual void printFull();
@@ -525,8 +527,9 @@ void HipBinSpirv::constructCompilerPath() {
   // checked
   fs::path llvmPath = envVariables.hipClangPathEnv_;
   if (!llvmPath.empty()) {
+    fs::path llvmConfigBin = envVariables.hipLLVMConfigBinEnv_;
     llvmPath /= "llvm-config";
-    if (!fs::exists(llvmPath)) {
+    if (llvmConfigBin.empty() && !fs::exists(llvmPath)) {
       cout << "Error: HIP_CLANG_PATH was set in the environment "
               "HIP_CLANG_PATH="
            << envVariables.hipClangPathEnv_
@@ -541,6 +544,7 @@ void HipBinSpirv::constructCompilerPath() {
   }
 
   hipCompilerBin_ = envVariables.hipCompilerBinEnv_;
+  hipLLVMConfigBin_ = envVariables.hipLLVMConfigBinEnv_;
 
   return;
 }
@@ -550,6 +554,8 @@ const string &HipBinSpirv::getCompilerPath() const { return hipClangPath_; }
 
 // returns clang binary path.
 const string &HipBinSpirv::getCompilerBinPath() const { return hipCompilerBin_; }
+
+const string &HipBinSpirv::getLLVMConfigBinPath() const { return hipLLVMConfigBin_; };
 
 // For spirv platform, return HIP_PATH instead of ROCM_PATH
 const string &HipBinSpirv::getRoccmPath() const {
@@ -578,14 +584,15 @@ void HipBinSpirv::printCompilerInfo() const {
 string HipBinSpirv::getCompilerVersion() {
   string out, complierVersion;
   const string &hipClangPath = getCompilerPath();
-  fs::path cmd = hipClangPath;
+  const string &hipLLVMConfigBin = getLLVMConfigBinPath();
+  fs::path cmd = hipLLVMConfigBin.empty() ? hipClangPath + "/llvm-config" : hipLLVMConfigBin;
+
   /**
    * Ubuntu systems do not provide this symlink clang++ -> clang++-14
    * Maybe use llvm-config instead?
    * $: llvm-config --version
    * $: 14.0.0
    */
-  cmd += "/llvm-config";
   if (canRunCompiler(cmd.string(), out)) {
     regex regexp("([0-9.]+)");
     smatch m;
