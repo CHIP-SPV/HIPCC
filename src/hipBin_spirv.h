@@ -187,7 +187,7 @@ public:
    * issues with nested shell invocations (chipStar wraps args before calling
    * hipcc, then hipcc would wrap again before calling clang).
    *
-   * @param str String to escape  
+   * @param str String to escape
    * @return Escaped string safe for shell command construction
    */
   string escapeShellMetachars(const string &str) {
@@ -240,7 +240,7 @@ public:
         offload = true;
       } else if (arg == "-fopenmp" || arg.rfind("-fopenmp=", 0) == 0) {
         // chipStar only supports host (CPU) OpenMP alongside HIP device
-        // offload. If -fopenmp is passed in, put it behind -Xarch_host. 
+        // offload. If -fopenmp is passed in, put it behind -Xarch_host.
 	    // otherwise at the moment (LLVM22) clang's
         // offloading driver treats it as an OpenMP-offload, producing:
         //   "mixed HIP and OPENMP offloading compilation is not supported".
@@ -845,7 +845,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
     bool spaceBefore = (pos > 0 && HIPLDFLAGS_NO_HIP_RT[pos-1] == ' ');
     size_t afterPos = pos + noHipRtFlag.length();
     bool spaceAfter = (afterPos < HIPLDFLAGS_NO_HIP_RT.length() && HIPLDFLAGS_NO_HIP_RT[afterPos] == ' ');
-    
+
     // Remove the flag and one surrounding space, keeping one space between tokens
     if (spaceBefore && spaceAfter) {
       // " -no-hip-rt " -> " " (erase flag + trailing space, keep leading space)
