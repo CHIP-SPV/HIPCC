@@ -44,6 +44,7 @@ class HipBinAmd : public HipBinBase {
   HipBinUtil* hipBinUtilPtr_;
   string hipClangPath_ = "";
   string hipCompilerBin_ = "";
+  string hipLlcBin_ = "";
   string roccmPathEnv_, hipRocclrPathEnv_, hsaPathEnv_;
   PlatformInfo platformInfoAMD_;
   string hipCFlags_, hipCXXFlags_, hipLdFlags_;
@@ -57,6 +58,7 @@ class HipBinAmd : public HipBinBase {
   virtual void constructCompilerPath();
   virtual const string& getCompilerPath() const;
   virtual const string& getCompilerBinPath() const;
+  virtual const string& getLlcBinPath() const;
   virtual const PlatformInfo& getPlatformInfo() const;
   virtual string getCppConfig();
   virtual void printFull();
@@ -252,6 +254,7 @@ void HipBinAmd::constructCompilerPath() {
   }
   hipClangPath_ = complierPath;
   hipCompilerBin_ = envVariables.hipCompilerBinEnv_;
+  hipLlcBin_ = envVariables.hipLlcBinEnv_;
 }
 
 
@@ -267,16 +270,22 @@ const string& HipBinAmd::getCompilerBinPath() const {
   return hipCompilerBin_;
 }
 
+// returns llc binary path.
+const string& HipBinAmd::getLlcBinPath() const {
+  return hipLlcBin_;
+}
+
 void HipBinAmd::printCompilerInfo() const {
   const OsType& os = getOSInfo();
   const string& hipClangPath = getCompilerPath();
   const string& hipCompilerBin = getCompilerBinPath();
+  const string& hipLlcBin = getLlcBinPath();
   const string& hipPath = getHipPath();
   if (os == OsType::windows) {
     string cmd = (hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin) + " --version";
     system(cmd.c_str());  // hipclang version
     cout << "llc-version :" << endl;
-    cmd = hipClangPath + "/llc --version";
+    cmd = (hipLlcBin.empty() ? hipClangPath + "/llc" : hipLlcBin) + " --version";
     system(cmd.c_str());  // llc version
     cout << "hip-clang-cxxflags :" << endl;
     cmd = hipPath + "/bin/hipcc  --cxxflags";
@@ -288,7 +297,7 @@ void HipBinAmd::printCompilerInfo() const {
   } else {
     string cmd = (hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin) + " --version";
     system(cmd.c_str());  // hipclang version
-    cmd = hipClangPath + "/llc --version";
+    cmd = (hipLlcBin.empty() ? hipClangPath + "/llc" : hipLlcBin) + " --version";
     system(cmd.c_str());  // llc version
     cout << "hip-clang-cxxflags :" << endl;
     cmd = hipPath + "/bin/hipcc --cxxflags";
