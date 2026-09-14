@@ -38,6 +38,7 @@ THE SOFTWARE.
 # define HIP_PLATFORM               "HIP_PLATFORM"
 # define HIP_COMPILER               "HIP_COMPILER"
 # define HIP_COMPILER_BIN           "HIP_COMPILER_BIN"
+# define HIP_LLC_BIN                "HIP_LLC_BIN"
 # define HIP_LLVM_CONFIG_BIN        "HIP_LLVM_CONFIG_BIN"
 # define HIP_RUNTIME                "HIP_RUNTIME"
 # define LD_LIBRARY_PATH            "LD_LIBRARY_PATH"
@@ -157,6 +158,7 @@ struct EnvVariables {
   string hipCompilerEnv_ = "";
   string hipCompilerBinEnv_ = "";
   string hipLLVMConfigBinEnv_ = "";
+  string hipLlcBinEnv_ = "";
   string hipRuntimeEnv_ = "";
   string ldLibraryPathEnv_ = "";
   string verboseEnv_ = "";
@@ -179,6 +181,7 @@ struct EnvVariables {
     os << "Hip Compiler: "                   << var.hipCompilerEnv_ << endl;
     os << "Hip Compiler Binary: "            << var.hipCompilerBinEnv_ << endl;
     os << "Hip llvm-config Path: "           << var.hipLLVMConfigBinEnv_ << endl;
+    os << "Hip llc Path: "                   << var.hipLlcBinEnv_ << endl;
     os << "Hip Runtime: "                    << var.hipRuntimeEnv_ << endl;
     os << "LD Library Path: "                << var.ldLibraryPathEnv_ << endl;
     os << "Verbose: "                        << var.verboseEnv_ << endl;
@@ -312,6 +315,8 @@ void HipBinBase::readEnvVariables() {
     envVariables_.hipCompilerEnv_ = hipCompiler;
   if (const char* hipCompilerBin = std::getenv(HIP_COMPILER_BIN))
     envVariables_.hipCompilerBinEnv_ = hipCompilerBin;
+  if (const char* hipLlcBin = std::getenv(HIP_LLC_BIN))
+    envVariables_.hipLlcBinEnv_ = hipLlcBin;
   if (const char* hipRuntime = std::getenv(HIP_RUNTIME))
     envVariables_.hipRuntimeEnv_ = hipRuntime;
   if (const char* ldLibaryPath = std::getenv(LD_LIBRARY_PATH))

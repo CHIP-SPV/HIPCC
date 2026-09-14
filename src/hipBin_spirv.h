@@ -394,6 +394,7 @@ private:
   HipBinUtil *hipBinUtilPtr_;
   string hipClangPath_ = "";
   string hipCompilerBin_ = "";
+  string hipLlcBin_ = "";
   string hipLLVMConfigBin_ = "";
   PlatformInfo platformInfo_;
   string hipCFlags_, hipCXXFlags_, hipLdFlags_, fixupHeader_;
@@ -406,6 +407,7 @@ public:
   virtual void constructCompilerPath();
   virtual const string &getCompilerPath() const;
   virtual const string &getCompilerBinPath() const;
+  virtual const string &getLlcBinPath() const;
   virtual const string &getLLVMConfigBinPath() const;
   virtual const PlatformInfo &getPlatformInfo() const;
   virtual string getCppConfig();
@@ -544,6 +546,7 @@ void HipBinSpirv::constructCompilerPath() {
   }
 
   hipCompilerBin_ = envVariables.hipCompilerBinEnv_;
+  hipLlcBin_ = envVariables.hipLlcBinEnv_;
   hipLLVMConfigBin_ = envVariables.hipLLVMConfigBinEnv_;
 
   return;
@@ -555,6 +558,9 @@ const string &HipBinSpirv::getCompilerPath() const { return hipClangPath_; }
 // returns clang binary path.
 const string &HipBinSpirv::getCompilerBinPath() const { return hipCompilerBin_; }
 
+// returns llc binary path
+const string &HipBinSpirv::getLlcBinPath() const { return hipLlcBin_; }
+
 const string &HipBinSpirv::getLLVMConfigBinPath() const { return hipLLVMConfigBin_; };
 
 // For spirv platform, return HIP_PATH instead of ROCM_PATH
@@ -565,12 +571,13 @@ const string &HipBinSpirv::getRoccmPath() const {
 void HipBinSpirv::printCompilerInfo() const {
   const string &hipClangPath = getCompilerPath();
   const string &hipCompilerBin = getCompilerBinPath();
+  const string &hipLlcBin = getLlcBinPath();
 
   cout << endl;
 
   string cmd = (hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin) + " --version";
   system(cmd.c_str()); // hipclang version
-  cmd = hipClangPath + "/llc --version";
+  cmd = (hipLlcBin.empty() ? hipClangPath + "/llc" : hipLlcBin) + " --version";
   system(cmd.c_str()); // llc version
   cout << "hip-clang-cxxflags :" << endl;
   cout << hipInfo_.cxxflags << endl;
