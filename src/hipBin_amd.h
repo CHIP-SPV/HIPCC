@@ -454,10 +454,9 @@ string HipBinAmd::getHipCC() const {
   const string& hipClangPath = getCompilerPath();
   const string& hipCompilerBin = getCompilerBinPath();
   fs::path compiler = hipCompilerBin.empty() ? hipClangPath + "/clang++" : hipCompilerBin;
-  if (!fs::exists(compiler)) {
-    fs::path compiler = hipClangPath;
-    compiler /= "clang";
-  }
+  // A bare-name HIP_COMPILER_BIN is resolved through PATH, which fs::exists cannot see.
+  if (hipCompilerBin.empty() && !fs::exists(compiler))
+    compiler = hipClangPath + "/clang";
   hipCC = compiler.string();
   return hipCC;
 }
