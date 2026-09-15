@@ -41,8 +41,6 @@ class HipBinNvidia : public HipBinBase {
   virtual bool detectPlatform();
   virtual void constructCompilerPath();
   virtual const string& getCompilerPath() const;
-  virtual const string& getCompilerBinPath() const;
-  virtual const string& getLlcBinPath() const;
   virtual const PlatformInfo& getPlatformInfo() const;
   virtual string getCppConfig();
   virtual void printFull();
@@ -246,16 +244,6 @@ void HipBinNvidia::constructCompilerPath() {
 // returns nvcc compiler Path
 const string& HipBinNvidia::getCompilerPath() const {
   return cudaPath_;
-}
-
-// unused
-const string& HipBinNvidia::getCompilerBinPath() const {
-  return "";
-}
-
-// returns llc binary Path
-const string& HipBinNvidia::getLlcBinPath() const {
-  return "";
 }
 
 // returns nvcc information
