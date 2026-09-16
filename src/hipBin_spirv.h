@@ -238,7 +238,8 @@ public:
         remainingArgs.push_back("-c");
       } else if (arg == "--offload=spirv64") {
         offload = true;
-      } else if (arg == "-fopenmp" || arg.rfind("-fopenmp=", 0) == 0) {
+      } else if (arg == "-fopenmp" || arg == "-fopenmp-simd" ||
+                 arg.rfind("-fopenmp=", 0) == 0) {
         // chipStar only supports host (CPU) OpenMP alongside HIP device
         // offload. If -fopenmp is passed in, put it behind -Xarch_host.
 	    // otherwise at the moment (LLVM22) clang's
