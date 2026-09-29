@@ -238,6 +238,12 @@ public:
         remainingArgs.push_back("-c");
       } else if (arg == "--offload=spirv64") {
         offload = true;
+      } else if (arg.rfind("--offload-arch=", 0) == 0 ||
+                 arg.rfind("--no-offload-arch=", 0) == 0 ||
+                 arg.rfind("--cuda-gpu-arch=", 0) == 0 ||
+                 arg.rfind("--no-cuda-gpu-arch=", 0) == 0) {
+        // A gfx arch renames the bundle, but archives unbundle as "generic".
+        continue;
       } else if (arg == "-fopenmp" || arg == "-fopenmp-simd" ||
                  arg.rfind("-fopenmp=", 0) == 0) {
         // chipStar only supports host (CPU) OpenMP alongside HIP device
