@@ -356,7 +356,8 @@ SystemCmdOut HipBinUtil::exec(const char* cmd,
       sysOut.exitCode = _pclose(pipe);
     #else
       int closeStatus = pclose(pipe);
-      sysOut.exitCode =  WEXITSTATUS(closeStatus);
+      sysOut.exitCode = WIFSIGNALED(closeStatus) ? 128 + WTERMSIG(closeStatus)
+                                                 : WEXITSTATUS(closeStatus);
     #endif
     if (printConsole == true) {
       cout << result << endl;
