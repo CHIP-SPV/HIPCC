@@ -482,7 +482,8 @@ void HipBinSpirv::initializeHipLdFlags() {
 void HipBinSpirv::initializeHipCFlags() {
   hipCFlags_ = "-D__HIP_PLATFORM_SPIRV__";
   string hipIncludePath = getHipInclude();
-  hipCFlags_ += " -isystem " + hipIncludePath;
+  hipCFlags_ +=
+      " -isystem " + CompilerOptions().escapeShellMetachars(hipIncludePath);
 
 #ifdef __APPLE__
   // On macOS, add sysroot to find system headers
@@ -516,7 +517,7 @@ void HipBinSpirv::initializeHipCXXFlags() {
   string hipCXXFlags = hipInfo_.cxxflags;
 
   std::smatch Match;
-  std::regex R("-include ([\\S]+)/hip/spirv_fixups.h");
+  std::regex R("-include ((?:[^\\s\\\\]|\\\\.)+)/hip/spirv_fixups.h");
   bool HasMatch = regex_search(hipCXXFlags, Match, R);
   if (HasMatch) {
     fixupHeader_ = Match[0].str();
@@ -961,7 +962,7 @@ void HipBinSpirv::executeHipCCCmd(vector<string> argv) {
   }
 
   // always add HIP include path for hip_runtime_api.h
-  CMD += " -I/" + hipIncludePath;
+  CMD += " -I/" + opts.escapeShellMetachars(hipIncludePath);
 
   if (opts.sourcesHip_present || opts.sourcesCpp_present) {
     CMD += " " + HIPCXXFLAGS;
